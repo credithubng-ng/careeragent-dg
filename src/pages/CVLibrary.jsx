@@ -215,10 +215,6 @@ export default function CVLibrary() {
       return;
     }
     const candidate = candidates[0];
-    if (!candidate?.id) {
-      toast.error("Create your candidate profile before adding a CV");
-      return;
-    }
 
     setSaving(true);
     try {
@@ -226,7 +222,7 @@ export default function CVLibrary() {
       const payload = {
         ...editableFields,
         cv_name: cv.cv_name.trim(),
-        candidate_id: candidate.id,
+        candidate_id: candidate?.id || "",
         cv_type: cv.is_master ? "Master CV" : cv.cv_type,
         date_last_updated: todayISO(),
         key_skills: typeof cv.key_skills === "string" ? cv.key_skills.split("\n").map((item) => item.trim()).filter(Boolean) : cv.key_skills,
@@ -249,8 +245,11 @@ export default function CVLibrary() {
       }
       setEditing(null);
       await refetch();
-    } catch {
-      toast.error("The CV could not be saved. Please try again.");
+    } catch (error) {
+      const message = error?.message
+        ? `The CV could not be saved: ${error.message}`
+        : "The CV could not be saved. Please try again.";
+      toast.error(message);
     } finally {
       setSaving(false);
     }
