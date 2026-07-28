@@ -40,9 +40,17 @@ async function inflate(deflated) {
 
 function xmlToPlainText(xml) {
   let text = xml
+    // Drop non-visible content that would otherwise leak as "code": field
+    // instruction text (hyperlinks, TOC, mail-merge), track-change deletions,
+    // and XML comments.
+    .replace(/<w:instrText[^>]*>[\s\S]*?<\/w:instrText>/g, "")
+    .replace(/<w:delText[^>]*>[\s\S]*?<\/w:delText>/g, "")
+    .replace(/<!--[\s\S]*?-->/g, "")
     .replace(/<w:p[ >]/g, "\n<w:p ")
-    .replace(/<w:br[ >\/]/g, "\n")
-    .replace(/<w:tab[ >\/]/g, "\t");
+    .replace(/<w:p\/>/g, "\n")
+    .replace(/<w:br[^>]*>/g, "\n")
+    .replace(/<w:cr[^>]*>/g, "\n")
+    .replace(/<w:tab[^>]*>/g, "\t");
   text = text.replace(/<[^>]+>/g, "");
   text = text
     .replace(/&amp;/g, "&")
@@ -50,10 +58,12 @@ function xmlToPlainText(xml) {
     .replace(/&gt;/g, ">")
     .replace(/&quot;/g, '"')
     .replace(/&apos;/g, "'")
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, n) => String.fromCodePoint(parseInt(n, 16)))
     .replace(/&#(\d+);/g, (_, n) => String.fromCodePoint(parseInt(n, 10)));
   return text
     .replace(/[ \t]+/g, " ")
     .replace(/\n[ \t]+/g, "\n")
+    .replace(/[ \t]+\n/g, "\n")
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 }
