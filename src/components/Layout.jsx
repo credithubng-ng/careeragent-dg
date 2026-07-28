@@ -27,7 +27,7 @@ export default function Layout() {
   const location = useLocation();
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background md:flex">
       {/* Mobile top bar */}
       <div className="md:hidden sticky top-0 z-30 flex items-center justify-between border-b border-border bg-card px-4 py-3">
         <Link to="/" className="flex items-center gap-2">
@@ -40,7 +40,7 @@ export default function Layout() {
       {/* Sidebar */}
       {open && <div className="fixed inset-0 z-40 bg-black/30 md:hidden" onClick={() => setOpen(false)} />}
       <aside className={cn(
-        "fixed inset-y-0 left-0 z-50 w-64 transform border-r border-border bg-card transition-transform md:translate-x-0 md:static md:z-auto",
+        "fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r border-border bg-card transition-transform md:static md:z-auto md:shrink-0 md:translate-x-0",
         open ? "translate-x-0" : "-translate-x-full"
       )}>
         <div className="flex h-16 items-center justify-between px-5 border-b border-border">
@@ -53,7 +53,7 @@ export default function Layout() {
           </Link>
           <button onClick={() => setOpen(false)} className="md:hidden rounded-lg p-1.5 hover:bg-muted"><X className="h-5 w-5" /></button>
         </div>
-        <nav className="flex flex-col gap-0.5 p-3 overflow-y-auto" style={{ maxHeight: "calc(100vh - 4rem)" }}>
+        <nav className="flex flex-1 flex-col gap-0.5 overflow-y-auto p-3">
           {NAV.map((item) => {
             const active = location.pathname === item.to || (item.to !== "/" && location.pathname.startsWith(item.to));
             const Icon = item.icon;
@@ -73,13 +73,13 @@ export default function Layout() {
             );
           })}
         </nav>
-        <div className="absolute bottom-0 left-0 right-0 border-t border-border bg-muted/30 p-3 text-[11px] text-muted-foreground">
+        <div className="border-t border-border bg-muted/30 p-3 text-[11px] text-muted-foreground">
           60-Day Campaign · Internal MVP
         </div>
       </aside>
 
       {/* Main content */}
-      <div className="md:pl-64">
+      <div className="min-w-0 flex-1">
         <main className="mx-auto max-w-7xl px-4 py-6 md:px-8 md:py-8">
           <Outlet />
         </main>
