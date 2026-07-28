@@ -44,7 +44,10 @@ export function classifyJob(job) {
 }
 
 export function buildCandidateContext(candidate, cvs) {
-  const master = (cvs || []).find((c) => c.is_master) || (cvs || [])[0];
+  const readyCVs = (cvs || []).filter(
+    (cv) => cv.processing_status === "Ready" && cv.file_uri && cv.extracted_cv_text
+  );
+  const master = readyCVs.find((cv) => cv.is_master) || readyCVs[0];
   return JSON.stringify(
     {
       profile: {

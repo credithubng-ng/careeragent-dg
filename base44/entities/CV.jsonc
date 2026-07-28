@@ -43,6 +43,33 @@
     "file_url": {
       "type": "string"
     },
+    "file_uri": {
+      "type": "string"
+    },
+    "file_name": {
+      "type": "string"
+    },
+    "file_type": {
+      "type": "string"
+    },
+    "file_size": {
+      "type": "number"
+    },
+    "processing_status": {
+      "type": "string",
+      "enum": [
+        "Processing",
+        "Ready",
+        "Failed"
+      ]
+    },
+    "processing_error": {
+      "type": "string"
+    },
+    "extracted_at": {
+      "type": "string",
+      "format": "date-time"
+    },
     "extracted_cv_text": {
       "type": "string"
     },
