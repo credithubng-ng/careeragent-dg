@@ -73,6 +73,7 @@ export default async function (req: Request) {
 
     const body = await req.json().catch(() => ({}));
     const apply = body?.confirm === CONFIRMATION;
+    const requestedOwner = normaliseEmail(body?.owner_email);
 
     if (body?.confirm && !apply) {
       return Response.json(
@@ -80,6 +81,13 @@ export default async function (req: Request) {
           error: "Invalid confirmation value.",
           expected_confirmation: CONFIRMATION,
         },
+        { status: 400 },
+      );
+    }
+
+    if (body?.owner_email && !requestedOwner) {
+      return Response.json(
+        { error: "owner_email must be a valid non-empty string." },
         { status: 400 },
       );
     }
@@ -95,7 +103,32 @@ export default async function (req: Request) {
       usersByEmail.set(email, [...(usersByEmail.get(email) ?? []), record]);
     }
 
+    if (
+      requestedOwner &&
+      (usersByEmail.get(requestedOwner)?.length ?? 0) !== 1
+    ) {
+      return Response.json(
+        { error: "owner_email must match exactly one Base44 user." },
+        { status: 400 },
+      );
+    }
+
     const candidates = await listAll(entities.Candidate);
+    const unownedCandidateCount = candidates.filter(
+      (candidate) => !normaliseEmail(candidate.created_by),
+    ).length;
+
+    if (requestedOwner && unownedCandidateCount !== 1) {
+      return Response.json(
+        {
+          error:
+            "A fallback owner can only be used when exactly one candidate lacks ownership.",
+          unowned_candidate_count: unownedCandidateCount,
+        },
+        { status: 409 },
+      );
+    }
+
     const candidateOwners = new Map<string, string>();
     const issues: MigrationIssue[] = [];
     const proposed: Array<{ entity: string; id: string; owner: string }> = [];
@@ -116,7 +149,7 @@ export default async function (req: Request) {
         emailMatches.length === 1
           ? normaliseEmail(emailMatches[0].email)
           : undefined,
-      ]);
+      ]) ?? requestedOwner;
 
       if (!owner) {
         issues.push({
@@ -191,6 +224,7 @@ export default async function (req: Request) {
 
     return Response.json({
       mode: apply ? "apply" : "dry-run",
+      requested_owner: requestedOwner || null,
       scanned: {
         users: users.length,
         candidates: candidates.length,
