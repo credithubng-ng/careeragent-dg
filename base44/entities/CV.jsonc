@@ -2,6 +2,10 @@
   "name": "CV",
   "type": "object",
   "properties": {
+    "owner_email": {
+      "type": "string",
+      "format": "email"
+    },
     "candidate_id": {
       "type": "string"
     },
@@ -84,9 +88,9 @@
     "cv_name"
   ],
   "rls": {
-    "create": { "user_condition": { "id": "{{user.id}}" } },
-    "read": { "$or": [{ "created_by": "{{user.email}}" }, { "user_condition": { "role": "admin" } }] },
-    "update": { "$or": [{ "created_by": "{{user.email}}" }, { "user_condition": { "role": "admin" } }] },
-    "delete": { "created_by": "{{user.email}}" }
+    "create": { "data.owner_email": "{{user.email}}" },
+    "read": { "$or": [{ "data.owner_email": "{{user.email}}" }, { "user_condition": { "role": "admin" } }] },
+    "update": { "$or": [{ "data.owner_email": "{{user.email}}" }, { "user_condition": { "role": "admin" } }] },
+    "delete": { "data.owner_email": "{{user.email}}" }
   }
 }

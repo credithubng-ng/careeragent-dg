@@ -7,6 +7,7 @@ import { ukDate, daysUntil, gbp } from "@/lib/format";
 import { analyseJobMatch } from "@/lib/careerAI";
 import { ArrowLeft, Sparkles, Flame, Check, X, HelpCircle, AlertTriangle, Wand2, Plus, ExternalLink, CalendarPlus } from "lucide-react";
 import { toast } from "react-hot-toast";
+import { createOwnedRecord } from "@/lib/ownedEntities";
 
 function ListBlock({ title, items, icon: Icon, tone = "default" }) {
   if (!items || items.length === 0) return null;
@@ -53,7 +54,7 @@ export default function JobDetail() {
     try {
       const result = await analyseJobMatch(job, candidate, cvs, scoring);
       const payload = { candidate_id: candidate.id, job_id: id, ...result };
-      const created = await base44.entities.JobMatch.create(payload);
+      const created = await createOwnedRecord("JobMatch", payload);
       setMatch(created);
       await base44.entities.Job.update(id, { match_score: result.total_score, recommendation: result.recommendation });
       setJob({ ...job, match_score: result.total_score, recommendation: result.recommendation });
@@ -76,13 +77,13 @@ export default function JobDetail() {
   async function addFollowUp() {
     const date = prompt("Follow-up date (YYYY-MM-DD):", new Date().toISOString().slice(0, 10));
     if (!date) return;
-    await base44.entities.Task.create({ job_id: id, title: `Follow up: ${job.job_title} at ${job.employer}`, due_date: date, priority: "Medium", related_type: "Follow-Up", recommended_action: "Contact recruiter" });
+    await createOwnedRecord("Task", { job_id: id, title: `Follow up: ${job.job_title} at ${job.employer}`, due_date: date, priority: "Medium", related_type: "Follow-Up", recommended_action: "Contact recruiter" });
     toast.success("Follow-up task added");
   }
 
   async function addInterview() {
     const candidate = candidates[0];
-    await base44.entities.Interview.create({ candidate_id: candidate?.id, job_id: id, employer: job.employer, job_title: job.job_title, interview_stage: "First Interview", interview_date: new Date().toISOString().slice(0, 10) });
+    await createOwnedRecord("Interview", { candidate_id: candidate?.id, job_id: id, employer: job.employer, job_title: job.job_title, interview_stage: "First Interview", interview_date: new Date().toISOString().slice(0, 10) });
     toast.success("Interview added");
   }
 

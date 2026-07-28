@@ -7,6 +7,7 @@ import { extractJobFromText } from "@/lib/careerAI";
 import { todayISO } from "@/lib/format";
 import { Sparkles, Save, ArrowLeft, FileText } from "lucide-react";
 import { toast } from "react-hot-toast";
+import { createOwnedRecord } from "@/lib/ownedEntities";
 
 export default function JobImport() {
   const navigate = useNavigate();
@@ -31,7 +32,7 @@ export default function JobImport() {
   async function save() {
     try {
       const candidate = candidates[0];
-      await base44.entities.Job.create({ ...review, candidate_id: candidate?.id });
+      await createOwnedRecord("Job", { ...review, candidate_id: candidate?.id });
       toast.success("Job saved");
       navigate("/jobs");
     } catch (e) { toast.error("Failed to save job"); }

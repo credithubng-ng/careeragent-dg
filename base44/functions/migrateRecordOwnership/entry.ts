@@ -20,7 +20,7 @@ const dependentEntityNames = [
 
 type LegacyRecord = {
   id: string;
-  created_by?: string | null;
+  owner_email?: string | null;
   candidate_id?: string | null;
   user_id?: string | null;
   email?: string | null;
@@ -115,7 +115,7 @@ export default async function (req: Request) {
 
     const candidates = await listAll(entities.Candidate);
     const unownedCandidateCount = candidates.filter(
-      (candidate) => !normaliseEmail(candidate.created_by),
+      (candidate) => !normaliseEmail(candidate.owner_email),
     ).length;
 
     if (requestedOwner && unownedCandidateCount !== 1) {
@@ -134,7 +134,7 @@ export default async function (req: Request) {
     const proposed: Array<{ entity: string; id: string; owner: string }> = [];
 
     for (const candidate of candidates) {
-      const existingOwner = normaliseEmail(candidate.created_by);
+      const existingOwner = normaliseEmail(candidate.owner_email);
       if (existingOwner) {
         candidateOwners.set(candidate.id, existingOwner);
         continue;
@@ -168,7 +168,7 @@ export default async function (req: Request) {
       const records = await listAll(entities[entityName]);
 
       for (const record of records) {
-        const existingOwner = normaliseEmail(record.created_by);
+        const existingOwner = normaliseEmail(record.owner_email);
         const candidateOwner = record.candidate_id
           ? candidateOwners.get(record.candidate_id)
           : undefined;
@@ -208,7 +208,7 @@ export default async function (req: Request) {
       for (const change of proposed) {
         try {
           await entities[change.entity].update(change.id, {
-            created_by: change.owner,
+            owner_email: change.owner,
           });
           updated.push({ entity: change.entity, id: change.id });
         } catch (error) {

@@ -6,6 +6,7 @@ import { ukDate, todayISO } from "@/lib/format";
 import { Plus, FileText, Star, X, Save, Edit } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { cn } from "@/lib/utils";
+import { createOwnedRecord } from "@/lib/ownedEntities";
 
 const CV_TYPES = ["Master CV", "Data Governance Manager CV", "Head of Data Governance CV", "Data Quality and Governance CV", "Financial Services Data Governance CV", "Public Sector Data Governance CV", "Contract and Interim CV", "Other"];
 const STATUSES = ["Draft", "Active", "Archived"];
@@ -38,7 +39,7 @@ export default function CVLibrary() {
       toast.success("CV updated");
     } else {
       if (cv.is_master) { const others = cvs.filter((c) => c.is_master); for (const o of others) await base44.entities.CV.update(o.id, { is_master: false }); }
-      await base44.entities.CV.create(payload);
+      await createOwnedRecord("CV", payload);
       toast.success("CV added");
     }
     setEditing(null);

@@ -6,6 +6,7 @@ import { PageHeader, SectionCard, Loading } from "@/components/ui-kit";
 import { todayISO } from "@/lib/format";
 import { ArrowLeft, Save } from "lucide-react";
 import { toast } from "react-hot-toast";
+import { createOwnedRecord } from "@/lib/ownedEntities";
 
 const FIELDS = [
   { section: "Basic", fields: [
@@ -66,7 +67,7 @@ export default function JobForm() {
         await base44.entities.Job.update(id, payload);
         toast.success("Job updated");
       } else {
-        await base44.entities.Job.create(payload);
+        await createOwnedRecord("Job", payload);
         toast.success("Job added");
       }
       navigate("/jobs");

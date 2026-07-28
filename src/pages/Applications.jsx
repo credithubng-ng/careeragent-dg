@@ -7,6 +7,7 @@ import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { Plus, X } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { cn } from "@/lib/utils";
+import { createOwnedRecord } from "@/lib/ownedEntities";
 
 const STAGES = ["Identified", "Reviewing", "Preparing", "Ready to Apply", "Applied", "Recruiter Contact", "First Interview", "Further Interview", "Assessment", "Reference Check", "Offer", "Rejected", "Withdrawn"];
 
@@ -39,7 +40,7 @@ export default function Applications() {
   async function addApp() {
     const job = jobs.find((j) => j.id === newApp.job_id);
     if (!job) { toast.error("Select a job"); return; }
-    await base44.entities.Application.create({ job_id: job.id, job_title: job.job_title, employer: job.employer, stage: newApp.stage });
+    await createOwnedRecord("Application", { job_id: job.id, job_title: job.job_title, employer: job.employer, stage: newApp.stage });
     setAdding(false); setNewApp({ job_id: "", stage: "Identified" });
     refetch();
     toast.success("Application added");

@@ -4,6 +4,7 @@ import { useCollection } from "@/lib/entityHooks";
 import { PageHeader, SectionCard, Loading, EmptyState } from "@/components/ui-kit";
 import { Save, Plus, Trash2, X, User } from "lucide-react";
 import { toast } from "react-hot-toast";
+import { createOwnedRecord } from "@/lib/ownedEntities";
 
 const SKILL_CATEGORIES = ["Data Governance", "Data Quality", "Data Strategy", "Data Management", "Metadata", "Data Lineage", "Data Stewardship", "Master Data Management", "Regulatory Compliance", "Risk and Controls", "Privacy", "Technology Platforms", "Leadership", "Stakeholder Management", "Programme Management", "Sector Knowledge"];
 const RIGHT_TO_WORK = ["UK Citizen", "UK ILR/Settled", "UK Visa Sponsorship Required", "EU Right to Work", "Other"];
@@ -28,7 +29,7 @@ export default function CandidateProfile() {
     setSaving(true);
     try {
       if (form.id) await base44.entities.Candidate.update(form.id, form);
-      else await base44.entities.Candidate.create(form);
+      else await createOwnedRecord("Candidate", form);
       toast.success("Profile saved");
       refetch();
     } catch { toast.error("Failed to save profile"); }

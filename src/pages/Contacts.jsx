@@ -4,6 +4,7 @@ import { useCollection } from "@/lib/entityHooks";
 import { PageHeader, SectionCard, Loading, EmptyState } from "@/components/ui-kit";
 import { Plus, X, Save, Mail, Phone, Linkedin } from "lucide-react";
 import { toast } from "react-hot-toast";
+import { createOwnedRecord } from "@/lib/ownedEntities";
 
 export default function Contacts() {
   const { data: contacts, loading, refetch } = useCollection("Contact", () => base44.entities.Contact.list("-created_date", 200));
@@ -17,7 +18,7 @@ export default function Contacts() {
     const candidate = candidates[0];
     const payload = { ...c, candidate_id: candidate?.id };
     if (c.id) await base44.entities.Contact.update(c.id, payload);
-    else await base44.entities.Contact.create(payload);
+    else await createOwnedRecord("Contact", payload);
     setEditing(null); refetch(); toast.success("Contact saved");
   }
 

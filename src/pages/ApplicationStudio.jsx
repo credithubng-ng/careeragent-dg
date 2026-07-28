@@ -8,6 +8,7 @@ import { todayISO, ukDateTime } from "@/lib/format";
 import { Sparkles, Save, Check, Loader2, FileText, Wand2 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { cn } from "@/lib/utils";
+import { createOwnedRecord } from "@/lib/ownedEntities";
 
 const SECTIONS = [
   { type: "Tailored Profile", label: "Tailored Profile", desc: "Revised professional summary aligned with the role" },
@@ -46,7 +47,7 @@ export default function ApplicationStudio() {
     try {
       const master = cvs.find((c) => c.is_master) || cvs[0];
       const content = await generateApplicationSection(section, job, candidate, master, questionText);
-      const created = await base44.entities.ApplicationDocument.create({
+      const created = await createOwnedRecord("ApplicationDocument", {
         candidate_id: candidate.id, job_id: jobId, document_type: section, title: section, content,
         source_cv_id: master?.id, date_generated: todayISO(), approval_status: "Draft", question_text: questionText || "",
       });

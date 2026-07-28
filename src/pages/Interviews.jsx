@@ -7,6 +7,7 @@ import { ukDate, ukDateTime, daysUntil, todayISO } from "@/lib/format";
 import { generateInterviewQuestions } from "@/lib/careerAI";
 import { Plus, X, Save, Sparkles, ExternalLink, Loader2 } from "lucide-react";
 import { toast } from "react-hot-toast";
+import { createOwnedRecord } from "@/lib/ownedEntities";
 
 const FORMATS = ["In Person", "Video", "Phone", "Assessment Centre", "Panel"];
 const PREP = ["Not Started", "In Progress", "Prepared", "Completed"];
@@ -24,7 +25,7 @@ export default function Interviews() {
     const candidate = candidates[0];
     const payload = { ...iv, candidate_id: candidate?.id };
     if (iv.id) await base44.entities.Interview.update(iv.id, payload);
-    else await base44.entities.Interview.create(payload);
+    else await createOwnedRecord("Interview", payload);
     setEditing(null); refetch(); toast.success("Interview saved");
   }
 

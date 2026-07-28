@@ -6,6 +6,7 @@ import { DEFAULT_WEIGHTS, DEFAULT_HARD_STOPS } from "@/lib/careerAI";
 import { todayISO } from "@/lib/format";
 import { Save, Plus, X } from "lucide-react";
 import { toast } from "react-hot-toast";
+import { createOwnedRecord } from "@/lib/ownedEntities";
 
 export default function Settings() {
   const { data: candidates, loading } = useCollection("Candidate", () => base44.entities.Candidate.list());
@@ -28,7 +29,7 @@ export default function Settings() {
   async function saveGoal() {
     try {
       if (goal.id) await base44.entities.CampaignGoal.update(goal.id, goal);
-      else await base44.entities.CampaignGoal.create(goal);
+      else await createOwnedRecord("CampaignGoal", goal);
       refetchGoals(); toast.success("Campaign saved");
     } catch { toast.error("Failed to save campaign"); }
   }
@@ -36,7 +37,7 @@ export default function Settings() {
   async function saveScoring() {
     try {
       if (scoring.id) await base44.entities.ScoringSetting.update(scoring.id, scoring);
-      else await base44.entities.ScoringSetting.create(scoring);
+      else await createOwnedRecord("ScoringSetting", scoring);
       refetchSettings(); toast.success("Scoring settings saved");
     } catch { toast.error("Failed to save scoring"); }
   }

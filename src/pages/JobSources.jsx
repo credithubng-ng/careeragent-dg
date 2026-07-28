@@ -4,6 +4,7 @@ import { useCollection } from "@/lib/entityHooks";
 import { PageHeader, SectionCard, Loading, EmptyState, StatusBadge } from "@/components/ui-kit";
 import { Plus, X, Save, ExternalLink } from "lucide-react";
 import { toast } from "react-hot-toast";
+import { createOwnedRecord } from "@/lib/ownedEntities";
 
 const SOURCE_TYPES = ["Job Board", "Recruitment Agency", "Employer Career Site", "Email Alert", "Referral", "LinkedIn Contact", "Manual Entry", "API Feed", "Other"];
 
@@ -22,7 +23,7 @@ export default function JobSources() {
     const candidate = candidates[0];
     const payload = { ...s, candidate_id: candidate?.id };
     if (s.id) await base44.entities.JobSource.update(s.id, payload);
-    else await base44.entities.JobSource.create(payload);
+    else await createOwnedRecord("JobSource", payload);
     setEditing(null); refetch(); toast.success("Source saved");
   }
 
