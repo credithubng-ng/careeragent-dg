@@ -32,5 +32,11 @@
   },
   "required": [
     "name"
-  ]
+  ],
+  "rls": {
+    "create": { "user_condition": { "id": "{{user.id}}" } },
+    "read": { "$or": [{ "created_by": "{{user.email}}" }, { "user_condition": { "role": "admin" } }] },
+    "update": { "$or": [{ "created_by": "{{user.email}}" }, { "user_condition": { "role": "admin" } }] },
+    "delete": { "created_by": "{{user.email}}" }
+  }
 }
