@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { base44 } from "@/api/base44Client";
 import { useCollection } from "@/lib/entityHooks";
 import { PageHeader, StatCard, SectionCard, Loading, EmptyState, ScoreBadge } from "@/components/ui-kit";
+import GitHubIssues from "@/components/GitHubIssues";
 import { ukDate, daysUntil, recommendationBand } from "@/lib/format";
 import { Briefcase, Send, CalendarClock, Trophy, Target, TrendingUp, AlertCircle, Flame } from "lucide-react";
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, PieChart, Pie, Cell, LineChart, Line, CartesianGrid, Legend } from "recharts";
@@ -180,6 +181,10 @@ export default function Dashboard() {
             </PieChart>
           </ResponsiveContainer>
         </SectionCard>
+      </div>
+
+      <div className="mb-6">
+        <GitHubIssues />
       </div>
 
       <SectionCard title="Applications & Interviews by Week">
