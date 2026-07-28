@@ -14,6 +14,8 @@ const STAGES = ["Identified", "Reviewing", "Preparing", "Ready to Apply", "Appli
 export default function Applications() {
   const { data: apps, loading, refetch } = useCollection("Application", () => base44.entities.Application.list("-created_date", 300));
   const { data: jobs } = useCollection("Job", () => base44.entities.Job.list("-created_date", 300));
+  const { data: candidates } = useCollection("Candidate", () => base44.entities.Candidate.list());
+  const { data: cvs } = useCollection("CV", () => base44.entities.CV.list("-created_date", 50));
   const [adding, setAdding] = useState(false);
   const [newApp, setNewApp] = useState({ job_id: "", stage: "Identified" });
 
@@ -40,7 +42,18 @@ export default function Applications() {
   async function addApp() {
     const job = jobs.find((j) => j.id === newApp.job_id);
     if (!job) { toast.error("Select a job"); return; }
-    await createOwnedRecord("Application", { job_id: job.id, job_title: job.job_title, employer: job.employer, stage: newApp.stage });
+    const candidate = candidates[0];
+    const masterCv = cvs.find((c) => c.is_master) || cvs[0];
+    await createOwnedRecord("Application", {
+      candidate_id: candidate?.id,
+      job_id: job.id,
+      job_title: job.job_title,
+      employer: job.employer,
+      contact_person: job.contact_person || "",
+      cv_id: masterCv?.id || "",
+      cv_name: masterCv?.cv_name || "",
+      stage: newApp.stage,
+    });
     setAdding(false); setNewApp({ job_id: "", stage: "Identified" });
     refetch();
     toast.success("Application added");
