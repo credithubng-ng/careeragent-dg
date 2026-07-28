@@ -1,10 +1,11 @@
 import React, { useState } from "react";
-import { Link, Outlet, useLocation } from "react-router-dom";
+import { Link, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import { base44 } from "@/api/base44Client";
 import {
   LayoutDashboard, ListTodo, Briefcase, Send, Wand2, CalendarDays,
   FileText, User, Users, BarChart3, Database, Settings as SettingsIcon,
-  Menu, X, Bell,
+  Menu, X, Bell, LogOut,
 } from "lucide-react";
 
 const NAV = [
@@ -25,6 +26,16 @@ const NAV = [
 export default function Layout() {
   const [open, setOpen] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
+
+  async function handleLogout() {
+    try {
+      await base44.auth.logout();
+    } catch {
+      /* ignore */
+    }
+    navigate("/login", { replace: true });
+  }
 
   return (
     <div className="min-h-screen bg-background md:flex">
@@ -73,8 +84,14 @@ export default function Layout() {
             );
           })}
         </nav>
-        <div className="border-t border-border bg-muted/30 p-3 text-[11px] text-muted-foreground">
-          60-Day Campaign · Internal MVP
+        <div className="border-t border-border bg-muted/30 p-3">
+          <button
+            onClick={handleLogout}
+            className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
+          >
+            <LogOut className="h-3.5 w-3.5" /> Log out
+          </button>
+          <div className="mt-2 text-[11px] text-muted-foreground">60-Day Campaign · Internal MVP</div>
         </div>
       </aside>
 
