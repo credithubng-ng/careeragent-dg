@@ -64,12 +64,17 @@ export async function uploadAndExtractCV(file, onStageChange = () => {}) {
    * education?: string,
    * certifications?: string
    * }} */
-  const extracted = await base44.integrations.Core.ExtractDataFromUploadedFile({
+  const response = await base44.integrations.Core.ExtractDataFromUploadedFile({
     file_url: signed.signed_url,
     json_schema: CV_EXTRACTION_SCHEMA,
   });
-  if (!extracted?.extracted_cv_text?.trim()) {
-    throw new Error("No CV text could be read. Check the document and try again.");
+  // ExtractDataFromUploadedFile returns { status, details, output }; the schema
+  // fields live under `output`. Fall back to the top level for safety.
+  const extracted = response?.output ?? response;
+  if (response?.status === "error" || !extracted?.extracted_cv_text?.trim()) {
+    throw new Error(
+      response?.details || "No CV text could be read. Check the document and try again."
+    );
   }
 
   return {
