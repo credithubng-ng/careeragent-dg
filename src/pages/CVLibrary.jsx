@@ -254,7 +254,13 @@ export default function CVLibrary() {
               <Field label="Professional summary"><textarea value={editing.professional_summary || ""} onChange={(event) => setEditing({ ...editing, professional_summary: event.target.value })} className="w-full min-h-[80px] rounded-lg border border-input bg-card p-3 text-sm" /></Field>
               <Field label="Key skills (one per line)"><textarea value={Array.isArray(editing.key_skills) ? editing.key_skills.join("\n") : editing.key_skills || ""} onChange={(event) => setEditing({ ...editing, key_skills: event.target.value })} className="w-full min-h-[80px] rounded-lg border border-input bg-card p-3 text-sm" /></Field>
               <Field label="Key achievements (one per line)"><textarea value={Array.isArray(editing.key_achievements) ? editing.key_achievements.join("\n") : editing.key_achievements || ""} onChange={(event) => setEditing({ ...editing, key_achievements: event.target.value })} className="w-full min-h-[80px] rounded-lg border border-input bg-card p-3 text-sm" /></Field>
-              {editing.extracted_cv_text && <Field label="Extracted CV preview"><textarea readOnly value={editing.extracted_cv_text} className="w-full min-h-[150px] rounded-lg border border-input bg-muted/40 p-3 text-sm font-mono text-muted-foreground" /></Field>}
+              {editing.extracted_cv_text && (
+                <Field label="Extracted CV preview">
+                  <div className="w-full max-h-[240px] overflow-y-auto rounded-lg border border-border bg-card p-4 text-sm leading-relaxed text-foreground whitespace-pre-wrap shadow-sm">
+                    {editing.extracted_cv_text}
+                  </div>
+                </Field>
+              )}
               <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={Boolean(editing.is_master)} onChange={(event) => setEditing({ ...editing, is_master: event.target.checked, cv_type: event.target.checked ? "Master CV" : editing.cv_type })} /> Mark as master CV</label>
             </div>
             <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 border-t border-border px-4 sm:px-5 py-3 sticky bottom-0 bg-card">
