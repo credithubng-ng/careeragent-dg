@@ -11,6 +11,7 @@ const RIGHT_TO_WORK = ["UK Citizen", "UK ILR/Settled", "UK Visa Sponsorship Requ
 
 export default function CandidateProfile() {
   const { data: candidates, loading, refetch } = useCollection("Candidate", () => base44.entities.Candidate.list());
+  const { data: cvs } = useCollection("CV", () => base44.entities.CV.list("-created_date", 50));
   const [form, setForm] = useState(null);
   const [saving, setSaving] = useState(false);
 
@@ -26,13 +27,33 @@ export default function CandidateProfile() {
       } catch {
         /* ignore */
       }
+      // Seed from the most relevant CV (master if present, otherwise most recent)
+      const cv = cvs.find((c) => c.is_master && c.processing_status === "Ready") || cvs.find((c) => c.processing_status === "Ready") || null;
+      const skills = (cv?.key_skills || []).map((name) => ({ name, category: "Data Governance", proficiency: 3, years: 1, essential: false }));
+      const preferred_job_titles = cv?.primary_target_role ? cv.primary_target_role.split(",").map((s) => s.trim()).filter(Boolean) : [];
+      const preferred_industries = cv?.primary_target_industry ? cv.primary_target_industry.split(",").map((s) => s.trim()).filter(Boolean) : [];
       if (cancelled) return;
-      setForm({ full_name, email, skills: [], certifications: [], education: [], employment_history: [], preferred_job_titles: [], alternative_job_titles: [], excluded_job_titles: [], preferred_locations: [], preferred_industries: [], excluded_industries: [] });
+      setForm({
+        full_name,
+        email,
+        executive_profile: cv?.professional_summary || "",
+        career_achievements: (cv?.key_achievements || []).join("\n"),
+        skills,
+        certifications: [],
+        education: [],
+        employment_history: [],
+        preferred_job_titles,
+        alternative_job_titles: [],
+        excluded_job_titles: [],
+        preferred_locations: [],
+        preferred_industries,
+        excluded_industries: [],
+      });
     }
     if (candidates.length) setForm(candidates[0]);
     else initBlank();
     return () => { cancelled = true; };
-  }, [candidates]);
+  }, [candidates, cvs]);
 
   function set(field, value) { setForm({ ...form, [field]: value }); }
   function setArr(field, value) { setForm({ ...form, [field]: value.split("\n").filter(Boolean) }); }
