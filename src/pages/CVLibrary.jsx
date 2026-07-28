@@ -7,9 +7,11 @@ import { Plus, FileText, Star, X, Save, Edit, Upload, Loader2, ExternalLink } fr
 import { toast } from "react-hot-toast";
 import { createOwnedRecord } from "@/lib/ownedEntities";
 import MultiSelect from "@/components/MultiSelect";
+import { syncCandidateProfileFromCV } from "@/lib/candidateProfileSync";
 import {
   createCVDownloadUrl,
   CV_FILE_ACCEPT,
+  extractCandidateProfileFromCVText,
   uploadAndExtractCV,
   validateCVFile,
 } from "@/lib/cvUpload";
@@ -218,7 +220,7 @@ export default function CVLibrary() {
 
     setSaving(true);
     try {
-      const { id, created_date, updated_date, created_by, ...editableFields } = cv;
+      const { id, created_date, updated_date, created_by, candidate_profile, ...editableFields } = cv;
       const payload = {
         ...editableFields,
         cv_name: cv.cv_name.trim(),
@@ -238,11 +240,22 @@ export default function CVLibrary() {
 
       if (id) {
         await base44.entities.CV.update(id, payload);
-        toast.success("CV updated");
       } else {
         await createOwnedRecord("CV", payload);
-        toast.success("CV added");
       }
+
+      let profileUpdated = false;
+      if (cv.is_master) {
+        const profileData = candidate_profile ||
+          await extractCandidateProfileFromCVText(cv.extracted_cv_text);
+        const result = await syncCandidateProfileFromCV(candidate, profileData);
+        profileUpdated = result.updated;
+      }
+      toast.success(
+        profileUpdated
+          ? `Master CV ${id ? "updated" : "added"} and candidate profile populated`
+          : `CV ${id ? "updated" : "added"}`
+      );
       setEditing(null);
       await refetch();
     } catch (error) {

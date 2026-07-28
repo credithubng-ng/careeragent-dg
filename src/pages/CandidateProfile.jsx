@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { base44 } from "@/api/base44Client";
 import { useCollection } from "@/lib/entityHooks";
-import { PageHeader, SectionCard, Loading, EmptyState } from "@/components/ui-kit";
-import { Save, Plus, Trash2, X, User } from "lucide-react";
+import { PageHeader, SectionCard, Loading } from "@/components/ui-kit";
+import { Save, Plus, Trash2 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { createOwnedRecord } from "@/lib/ownedEntities";
 
@@ -147,7 +147,7 @@ export default function CandidateProfile() {
                 <div key={i} className="grid grid-cols-1 md:grid-cols-7 gap-2 items-end border-b border-border pb-3">
                   <input placeholder="Skill name" value={s.name} onChange={(e) => { const arr = [...form.skills]; arr[i] = { ...s, name: e.target.value }; set("skills", arr); }} className="md:col-span-2 rounded-lg border border-input bg-card px-3 py-2 text-sm" />
                   <select value={s.category} onChange={(e) => { const arr = [...form.skills]; arr[i] = { ...s, category: e.target.value }; set("skills", arr); }} className="rounded-lg border border-input bg-card px-2 py-2 text-sm">{SKILL_CATEGORIES.map((c) => <option key={c}>{c}</option>)}</select>
-                  <select value={s.proficiency} onChange={(e) => { const arr = [...form.skills]; arr[i] = { ...s, proficiency: Number(e.target.value) }; set("skills", arr); }} className="rounded-lg border border-input bg-card px-2 py-2 text-sm">{[1, 2, 3, 4, 5].map((n) => <option key={n} value={n}>{n}/5</option>)}</select>
+                  <select value={s.proficiency ?? ""} onChange={(e) => { const arr = [...form.skills]; arr[i] = { ...s, proficiency: e.target.value ? Number(e.target.value) : undefined }; set("skills", arr); }} className="rounded-lg border border-input bg-card px-2 py-2 text-sm"><option value="">Not assessed</option>{[1, 2, 3, 4, 5].map((n) => <option key={n} value={n}>{n}/5</option>)}</select>
                   <input type="number" placeholder="Years" value={s.years ?? ""} onChange={(e) => { const arr = [...form.skills]; arr[i] = { ...s, years: Number(e.target.value) }; set("skills", arr); }} className="rounded-lg border border-input bg-card px-3 py-2 text-sm" />
                   <label className="flex items-center gap-1 text-xs"><input type="checkbox" checked={s.essential || false} onChange={(e) => { const arr = [...form.skills]; arr[i] = { ...s, essential: e.target.checked }; set("skills", arr); }} /> Essential</label>
                   <button onClick={() => removeArrayItem("skills", i)} className="text-rose-500"><Trash2 className="h-4 w-4" /></button>

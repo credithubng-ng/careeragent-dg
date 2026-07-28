@@ -11,6 +11,79 @@ const ALLOWED_MIME_TYPES = new Set([
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 ]);
 
+const CANDIDATE_PROFILE_SCHEMA = {
+  type: "object",
+  properties: {
+        full_name: { type: "string" },
+        email: { type: "string" },
+        telephone: { type: "string" },
+        current_location: { type: "string" },
+        linkedin_url: { type: "string" },
+        current_job_title: { type: "string" },
+        current_employer: { type: "string" },
+        years_total_experience: { type: "number" },
+        years_leadership: { type: "number" },
+        years_data_governance: { type: "number" },
+        current_industry: { type: "string" },
+        executive_profile: { type: "string" },
+        career_achievements: { type: "string" },
+        leadership_experience: { type: "string" },
+        regulatory_experience: { type: "string" },
+        transformation_experience: { type: "string" },
+        stakeholder_management_experience: { type: "string" },
+        team_management_experience: { type: "string" },
+        budget_management_experience: { type: "string" },
+        skills: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              name: { type: "string" },
+              category: { type: "string" },
+              evidence: { type: "string" },
+            },
+          },
+        },
+        certifications: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              qualification: { type: "string" },
+              institution: { type: "string" },
+              date_completed: { type: "string" },
+              notes: { type: "string" },
+            },
+          },
+        },
+        education: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              qualification: { type: "string" },
+              institution: { type: "string" },
+              date_completed: { type: "string" },
+              notes: { type: "string" },
+            },
+          },
+        },
+        employment_history: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              job_title: { type: "string" },
+              employer: { type: "string" },
+              start_date: { type: "string" },
+              end_date: { type: "string" },
+              summary: { type: "string" },
+            },
+          },
+        },
+  },
+};
+
 const CV_EXTRACTION_SCHEMA = {
   type: "object",
   properties: {
@@ -21,9 +94,20 @@ const CV_EXTRACTION_SCHEMA = {
     employment_history: { type: "string" },
     education: { type: "string" },
     certifications: { type: "string" },
+    candidate_profile: CANDIDATE_PROFILE_SCHEMA,
   },
   required: ["extracted_cv_text"],
 };
+
+export async function extractCandidateProfileFromCVText(text) {
+  if (!text?.trim()) return {};
+  /** @type {any} */
+  const result = await base44.integrations.Core.InvokeLLM({
+    prompt: `Extract candidate-profile fields from the CV below. Use only facts explicitly stated in the CV. Do not infer missing experience duration, skill proficiency, contact details, industry or achievements. Leave unknown fields empty.\n\nCV TEXT:\n"""${text}"""`,
+    response_json_schema: CANDIDATE_PROFILE_SCHEMA,
+  });
+  return result || {};
+}
 
 export function validateCVFile(file) {
   if (!file) return "Choose a PDF or DOCX file.";
@@ -60,8 +144,9 @@ export async function uploadAndExtractCV(file, onStageChange = () => {}) {
     if (!text.trim()) throw new Error("No CV text could be read. Check the document and try again.");
 
     onStageChange("Analysing CV content");
+    /** @type {any} */
     const llm = await base44.integrations.Core.InvokeLLM({
-      prompt: `Extract the structured CV fields from the candidate's CV below. Return only the JSON object matching the schema.\n\nCV TEXT:\n"""${text}"""`,
+      prompt: `Extract the structured CV and candidate-profile fields from the candidate's CV below. Use only facts explicitly stated in the CV. Do not infer experience duration, proficiency, industry, contact details or achievements. Leave unknown fields empty and return only the JSON object matching the schema.\n\nCV TEXT:\n"""${text}"""`,
       response_json_schema: CV_EXTRACTION_SCHEMA,
     });
     extracted = { ...llm, extracted_cv_text: text };
@@ -73,6 +158,7 @@ export async function uploadAndExtractCV(file, onStageChange = () => {}) {
     });
     if (!signed?.signed_url) throw new Error("The uploaded document could not be opened for processing.");
 
+    /** @type {any} */
     const response = await base44.integrations.Core.ExtractDataFromUploadedFile({
       file_url: signed.signed_url,
       json_schema: CV_EXTRACTION_SCHEMA,
@@ -102,6 +188,7 @@ export async function uploadAndExtractCV(file, onStageChange = () => {}) {
     employment_history: extracted.employment_history || "",
     education: extracted.education || "",
     certifications: extracted.certifications || "",
+    candidate_profile: extracted.candidate_profile || {},
   };
 }
 

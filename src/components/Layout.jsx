@@ -5,7 +5,7 @@ import { base44 } from "@/api/base44Client";
 import {
   LayoutDashboard, ListTodo, Briefcase, Send, Wand2, CalendarDays,
   FileText, User, Users, BarChart3, Database, Settings as SettingsIcon,
-  Menu, X, Bell, LogOut,
+  Menu, X, LogOut,
 } from "lucide-react";
 
 const NAV = [
@@ -86,6 +86,7 @@ export default function Layout() {
         </nav>
         <div className="border-t border-border bg-muted/30 p-3">
           <button
+            type="button"
             onClick={handleLogout}
             className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground"
           >
