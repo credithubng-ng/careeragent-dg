@@ -214,10 +214,6 @@ export default function CVLibrary() {
       toast.error("CV name is required");
       return;
     }
-    if (!cv.file_uri || cv.processing_status !== "Ready") {
-      toast.error("Upload a valid PDF or DOCX before saving");
-      return;
-    }
     const candidate = candidates[0];
     if (!candidate?.id) {
       toast.error("Create your candidate profile before adding a CV");
@@ -370,7 +366,7 @@ export default function CVLibrary() {
             </div>
             <div className="flex flex-col-reverse sm:flex-row justify-end gap-2 border-t border-border px-4 sm:px-5 py-3 sticky bottom-0 bg-card">
               <button disabled={Boolean(uploadStage) || saving} onClick={() => setEditing(null)} className="rounded-lg border border-border px-4 py-2 text-sm disabled:opacity-50">Cancel</button>
-              <button disabled={Boolean(uploadStage) || saving || editing.processing_status !== "Ready"} onClick={() => save(editing)} className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary text-primary-foreground px-4 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50">
+              <button disabled={Boolean(uploadStage) || saving} onClick={() => save(editing)} className="inline-flex items-center justify-center gap-2 rounded-lg bg-primary text-primary-foreground px-4 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50">
                 {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} {saving ? "Saving" : "Save CV"}
               </button>
             </div>
