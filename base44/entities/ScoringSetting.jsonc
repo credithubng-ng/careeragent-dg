@@ -1,0 +1,52 @@
+{
+  "name": "ScoringSetting",
+  "type": "object",
+  "properties": {
+    "candidate_id": {
+      "type": "string"
+    },
+    "weight_experience": {
+      "type": "number",
+      "default": 25
+    },
+    "weight_essential_skills": {
+      "type": "number",
+      "default": 20
+    },
+    "weight_seniority_leadership": {
+      "type": "number",
+      "default": 15
+    },
+    "weight_sector": {
+      "type": "number",
+      "default": 10
+    },
+    "weight_responsibilities": {
+      "type": "number",
+      "default": 10
+    },
+    "weight_location": {
+      "type": "number",
+      "default": 8
+    },
+    "weight_salary": {
+      "type": "number",
+      "default": 7
+    },
+    "weight_qualifications": {
+      "type": "number",
+      "default": 5
+    },
+    "hard_stops": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "active": {
+      "type": "boolean",
+      "default": true
+    }
+  },
+  "required": []
+}

@@ -1,0 +1,105 @@
+{
+  "name": "Application",
+  "type": "object",
+  "properties": {
+    "candidate_id": {
+      "type": "string"
+    },
+    "job_id": {
+      "type": "string"
+    },
+    "job_title": {
+      "type": "string"
+    },
+    "employer": {
+      "type": "string"
+    },
+    "date_applied": {
+      "type": "string"
+    },
+    "application_method": {
+      "type": "string"
+    },
+    "cv_id": {
+      "type": "string"
+    },
+    "cv_name": {
+      "type": "string"
+    },
+    "cover_letter_id": {
+      "type": "string"
+    },
+    "supporting_statement_id": {
+      "type": "string"
+    },
+    "contact_person": {
+      "type": "string"
+    },
+    "follow_up_date": {
+      "type": "string"
+    },
+    "interview_dates": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "notes": {
+      "type": "string"
+    },
+    "stage": {
+      "type": "string",
+      "enum": [
+        "Identified",
+        "Reviewing",
+        "Preparing",
+        "Ready to Apply",
+        "Applied",
+        "Recruiter Contact",
+        "First Interview",
+        "Further Interview",
+        "Assessment",
+        "Reference Check",
+        "Offer",
+        "Rejected",
+        "Withdrawn"
+      ],
+      "default": "Identified"
+    },
+    "outcome": {
+      "type": "string"
+    },
+    "rejection_reason": {
+      "type": "string",
+      "enum": [
+        "No Response",
+        "Role Filled",
+        "Insufficient Sector Experience",
+        "Insufficient Technical Experience",
+        "Salary Misalignment",
+        "Location",
+        "Right-to-Work Requirement",
+        "Security Clearance",
+        "More Senior Candidate Selected",
+        "More Junior Candidate Selected",
+        "Internal Candidate",
+        "Failed Assessment",
+        "Interview Performance",
+        "Unknown",
+        "Other"
+      ]
+    },
+    "offer_details": {
+      "type": "string"
+    },
+    "salary_offered": {
+      "type": "number"
+    },
+    "candidate_decision": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "job_id"
+  ]
+}

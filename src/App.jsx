@@ -1,12 +1,28 @@
 import { Toaster } from "@/components/ui/toaster"
 import { QueryClientProvider } from '@tanstack/react-query'
 import { queryClientInstance } from '@/lib/query-client'
-import { BrowserRouter as Router, Route, Routes } from 'react-router-dom';
+import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-dom';
 import PageNotFound from './lib/PageNotFound';
 import { AuthProvider, useAuth } from '@/lib/AuthContext';
 import UserNotRegisteredError from '@/components/UserNotRegisteredError';
 import ScrollToTop from './components/ScrollToTop';
-// Add page imports here
+import ProtectedRoute from '@/components/ProtectedRoute';
+import Layout from '@/components/Layout';
+import Dashboard from './pages/Dashboard';
+import TodaysPriorities from './pages/TodaysPriorities';
+import Jobs from './pages/Jobs';
+import JobDetail from './pages/JobDetail';
+import JobForm from './pages/JobForm';
+import JobImport from './pages/JobImport';
+import Applications from './pages/Applications';
+import ApplicationStudio from './pages/ApplicationStudio';
+import Interviews from './pages/Interviews';
+import CVLibrary from './pages/CVLibrary';
+import CandidateProfile from './pages/CandidateProfile';
+import Contacts from './pages/Contacts';
+import Analytics from './pages/Analytics';
+import JobSources from './pages/JobSources';
+import SettingsPage from './pages/Settings';
 
 const AuthenticatedApp = () => {
   const { isLoadingAuth, isLoadingPublicSettings, authError, navigateToLogin } = useAuth();
@@ -34,7 +50,26 @@ const AuthenticatedApp = () => {
   // Render the main app
   return (
     <Routes>
-      {/* Add your page Route elements here */}
+      <Route element={<ProtectedRoute unauthenticatedElement={<Navigate to="/login" replace />} />}>
+        <Route element={<Layout />}>
+          <Route path="/" element={<Dashboard />} />
+          <Route path="/priorities" element={<TodaysPriorities />} />
+          <Route path="/jobs" element={<Jobs />} />
+          <Route path="/jobs/new" element={<JobForm />} />
+          <Route path="/jobs/import" element={<JobImport />} />
+          <Route path="/jobs/:id" element={<JobDetail />} />
+          <Route path="/jobs/:id/edit" element={<JobForm />} />
+          <Route path="/applications" element={<Applications />} />
+          <Route path="/studio" element={<ApplicationStudio />} />
+          <Route path="/interviews" element={<Interviews />} />
+          <Route path="/cv" element={<CVLibrary />} />
+          <Route path="/profile" element={<CandidateProfile />} />
+          <Route path="/contacts" element={<Contacts />} />
+          <Route path="/analytics" element={<Analytics />} />
+          <Route path="/sources" element={<JobSources />} />
+          <Route path="/settings" element={<SettingsPage />} />
+        </Route>
+      </Route>
       <Route path="*" element={<PageNotFound />} />
     </Routes>
   );

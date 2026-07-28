@@ -1,0 +1,54 @@
+{
+  "name": "JobSource",
+  "type": "object",
+  "properties": {
+    "candidate_id": {
+      "type": "string"
+    },
+    "source_name": {
+      "type": "string"
+    },
+    "source_type": {
+      "type": "string",
+      "enum": [
+        "Job Board",
+        "Recruitment Agency",
+        "Employer Career Site",
+        "Email Alert",
+        "Referral",
+        "LinkedIn Contact",
+        "Manual Entry",
+        "API Feed",
+        "Other"
+      ]
+    },
+    "website": {
+      "type": "string"
+    },
+    "active_status": {
+      "type": "boolean",
+      "default": true
+    },
+    "reliability_rating": {
+      "type": "number"
+    },
+    "jobs_found": {
+      "type": "number"
+    },
+    "applications": {
+      "type": "number"
+    },
+    "interviews": {
+      "type": "number"
+    },
+    "offers": {
+      "type": "number"
+    },
+    "notes": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "source_name"
+  ]
+}

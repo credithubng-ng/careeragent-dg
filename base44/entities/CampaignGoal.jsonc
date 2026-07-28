@@ -1,0 +1,33 @@
+{
+  "name": "CampaignGoal",
+  "type": "object",
+  "properties": {
+    "candidate_id": {
+      "type": "string"
+    },
+    "campaign_name": {
+      "type": "string"
+    },
+    "start_date": {
+      "type": "string"
+    },
+    "target_end_date": {
+      "type": "string"
+    },
+    "target_applications": {
+      "type": "number"
+    },
+    "target_recruiter_conversations": {
+      "type": "number"
+    },
+    "target_interviews": {
+      "type": "number"
+    },
+    "target_offers": {
+      "type": "number"
+    }
+  },
+  "required": [
+    "campaign_name"
+  ]
+}

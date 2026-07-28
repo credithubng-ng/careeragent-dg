@@ -1,0 +1,86 @@
+{
+  "name": "CV",
+  "type": "object",
+  "properties": {
+    "candidate_id": {
+      "type": "string"
+    },
+    "cv_name": {
+      "type": "string"
+    },
+    "cv_type": {
+      "type": "string",
+      "enum": [
+        "Master CV",
+        "Data Governance Manager CV",
+        "Head of Data Governance CV",
+        "Data Quality and Governance CV",
+        "Financial Services Data Governance CV",
+        "Public Sector Data Governance CV",
+        "Contract and Interim CV",
+        "Other"
+      ]
+    },
+    "version_number": {
+      "type": "string"
+    },
+    "upload_date": {
+      "type": "string"
+    },
+    "date_last_updated": {
+      "type": "string"
+    },
+    "primary_target_role": {
+      "type": "string"
+    },
+    "primary_target_industry": {
+      "type": "string"
+    },
+    "file_url": {
+      "type": "string"
+    },
+    "extracted_cv_text": {
+      "type": "string"
+    },
+    "professional_summary": {
+      "type": "string"
+    },
+    "key_skills": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "key_achievements": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "employment_history": {
+      "type": "string"
+    },
+    "education": {
+      "type": "string"
+    },
+    "certifications": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "Draft",
+        "Active",
+        "Archived"
+      ],
+      "default": "Active"
+    },
+    "is_master": {
+      "type": "boolean",
+      "default": false
+    }
+  },
+  "required": [
+    "cv_name"
+  ]
+}

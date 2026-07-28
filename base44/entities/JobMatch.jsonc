@@ -1,0 +1,89 @@
+{
+  "name": "JobMatch",
+  "type": "object",
+  "properties": {
+    "candidate_id": {
+      "type": "string"
+    },
+    "job_id": {
+      "type": "string"
+    },
+    "total_score": {
+      "type": "number"
+    },
+    "recommendation": {
+      "type": "string",
+      "enum": [
+        "Excellent Match",
+        "Strong Match",
+        "Possible Match",
+        "Weak Match",
+        "Do Not Apply"
+      ]
+    },
+    "confidence": {
+      "type": "string"
+    },
+    "strong_reasons": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "partial_reasons": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "missing_requirements": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "transferable_strengths": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "concerns": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "questions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "hard_stops": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "suggested_cv": {
+      "type": "string"
+    },
+    "application_priority": {
+      "type": "string"
+    },
+    "suggested_deadline": {
+      "type": "string"
+    },
+    "recommended_action": {
+      "type": "string"
+    },
+    "breakdown": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+  "required": [
+    "job_id"
+  ]
+}

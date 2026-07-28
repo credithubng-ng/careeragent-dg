@@ -1,0 +1,40 @@
+{
+  "name": "Notification",
+  "type": "object",
+  "properties": {
+    "candidate_id": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    },
+    "message": {
+      "type": "string"
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "Closing Date",
+        "Follow-Up",
+        "Interview",
+        "Missing Document",
+        "New High Match",
+        "Awaiting Review",
+        "Overdue"
+      ]
+    },
+    "due_date": {
+      "type": "string"
+    },
+    "job_id": {
+      "type": "string"
+    },
+    "read": {
+      "type": "boolean",
+      "default": false
+    }
+  },
+  "required": [
+    "title"
+  ]
+}

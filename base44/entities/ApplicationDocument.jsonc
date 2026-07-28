@@ -1,0 +1,54 @@
+{
+  "name": "ApplicationDocument",
+  "type": "object",
+  "properties": {
+    "candidate_id": {
+      "type": "string"
+    },
+    "job_id": {
+      "type": "string"
+    },
+    "application_id": {
+      "type": "string"
+    },
+    "document_type": {
+      "type": "string",
+      "enum": [
+        "Tailored Profile",
+        "CV Improvement",
+        "Cover Letter",
+        "Supporting Statement",
+        "Recruiter Message",
+        "Application Question"
+      ]
+    },
+    "title": {
+      "type": "string"
+    },
+    "content": {
+      "type": "string"
+    },
+    "source_cv_id": {
+      "type": "string"
+    },
+    "date_generated": {
+      "type": "string"
+    },
+    "approval_status": {
+      "type": "string",
+      "enum": [
+        "Draft",
+        "Not Approved",
+        "Approved"
+      ],
+      "default": "Draft"
+    },
+    "question_text": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "job_id",
+    "document_type"
+  ]
+}

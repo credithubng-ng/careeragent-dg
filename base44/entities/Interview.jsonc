@@ -1,0 +1,80 @@
+{
+  "name": "Interview",
+  "type": "object",
+  "properties": {
+    "candidate_id": {
+      "type": "string"
+    },
+    "application_id": {
+      "type": "string"
+    },
+    "job_id": {
+      "type": "string"
+    },
+    "employer": {
+      "type": "string"
+    },
+    "job_title": {
+      "type": "string"
+    },
+    "interview_stage": {
+      "type": "string"
+    },
+    "interview_date": {
+      "type": "string"
+    },
+    "interview_format": {
+      "type": "string",
+      "enum": [
+        "In Person",
+        "Video",
+        "Phone",
+        "Assessment Centre",
+        "Panel"
+      ]
+    },
+    "location_or_link": {
+      "type": "string"
+    },
+    "interviewers": {
+      "type": "string"
+    },
+    "preparation_status": {
+      "type": "string",
+      "enum": [
+        "Not Started",
+        "In Progress",
+        "Prepared",
+        "Completed"
+      ],
+      "default": "Not Started"
+    },
+    "key_competencies": {
+      "type": "string"
+    },
+    "likely_questions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "candidate_questions": {
+      "type": "string"
+    },
+    "star_examples": {
+      "type": "string"
+    },
+    "research_notes": {
+      "type": "string"
+    },
+    "follow_up_action": {
+      "type": "string"
+    },
+    "outcome": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "employer"
+  ]
+}

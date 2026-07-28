@@ -1,0 +1,52 @@
+{
+  "name": "Task",
+  "type": "object",
+  "properties": {
+    "candidate_id": {
+      "type": "string"
+    },
+    "job_id": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    },
+    "description": {
+      "type": "string"
+    },
+    "priority": {
+      "type": "string",
+      "enum": [
+        "Critical",
+        "High",
+        "Medium",
+        "Low"
+      ],
+      "default": "Medium"
+    },
+    "due_date": {
+      "type": "string"
+    },
+    "recommended_action": {
+      "type": "string"
+    },
+    "related_type": {
+      "type": "string",
+      "enum": [
+        "Application",
+        "Follow-Up",
+        "Interview",
+        "Review",
+        "Document",
+        "Other"
+      ]
+    },
+    "completed": {
+      "type": "boolean",
+      "default": false
+    }
+  },
+  "required": [
+    "title"
+  ]
+}

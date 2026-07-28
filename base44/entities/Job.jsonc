@@ -1,0 +1,163 @@
+{
+  "name": "Job",
+  "type": "object",
+  "properties": {
+    "candidate_id": {
+      "type": "string"
+    },
+    "job_title": {
+      "type": "string"
+    },
+    "employer": {
+      "type": "string"
+    },
+    "recruitment_agency": {
+      "type": "string"
+    },
+    "job_source_id": {
+      "type": "string"
+    },
+    "job_source_name": {
+      "type": "string"
+    },
+    "original_job_url": {
+      "type": "string"
+    },
+    "job_reference": {
+      "type": "string"
+    },
+    "date_discovered": {
+      "type": "string"
+    },
+    "date_posted": {
+      "type": "string"
+    },
+    "closing_date": {
+      "type": "string"
+    },
+    "employment_type": {
+      "type": "string",
+      "enum": [
+        "Permanent",
+        "Contract",
+        "Interim",
+        "Fixed Term",
+        "Part-time"
+      ]
+    },
+    "contract_length": {
+      "type": "string"
+    },
+    "location": {
+      "type": "string"
+    },
+    "country": {
+      "type": "string"
+    },
+    "work_arrangement": {
+      "type": "string",
+      "enum": [
+        "Remote",
+        "Hybrid",
+        "Office",
+        "Unspecified"
+      ]
+    },
+    "salary_min": {
+      "type": "number"
+    },
+    "salary_max": {
+      "type": "number"
+    },
+    "salary_description": {
+      "type": "string"
+    },
+    "currency": {
+      "type": "string",
+      "default": "GBP"
+    },
+    "job_description": {
+      "type": "string"
+    },
+    "responsibilities": {
+      "type": "string"
+    },
+    "essential_requirements": {
+      "type": "string"
+    },
+    "desirable_requirements": {
+      "type": "string"
+    },
+    "required_years_experience": {
+      "type": "number"
+    },
+    "required_qualifications": {
+      "type": "string"
+    },
+    "required_certifications": {
+      "type": "string"
+    },
+    "required_technologies": {
+      "type": "string"
+    },
+    "required_sector_experience": {
+      "type": "string"
+    },
+    "right_to_work_requirements": {
+      "type": "string"
+    },
+    "security_clearance_requirement": {
+      "type": "string"
+    },
+    "contact_person": {
+      "type": "string"
+    },
+    "contact_email": {
+      "type": "string"
+    },
+    "recruiter_linkedin_url": {
+      "type": "string"
+    },
+    "job_status": {
+      "type": "string",
+      "enum": [
+        "New",
+        "Reviewing",
+        "High Priority",
+        "Apply",
+        "Maybe",
+        "Skip",
+        "Preparing Application",
+        "Applied",
+        "Interview",
+        "Offer",
+        "Rejected",
+        "Withdrawn",
+        "Expired"
+      ],
+      "default": "New"
+    },
+    "duplicate_job_reference": {
+      "type": "string"
+    },
+    "expired_status": {
+      "type": "boolean",
+      "default": false
+    },
+    "candidate_notes": {
+      "type": "string"
+    },
+    "match_score": {
+      "type": "number"
+    },
+    "recommendation": {
+      "type": "string"
+    },
+    "sector": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "job_title"
+  ]
+}
