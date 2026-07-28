@@ -15,8 +15,23 @@ export default function CandidateProfile() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
+    async function initBlank() {
+      let full_name = "";
+      let email = "";
+      try {
+        const me = await base44.auth.me();
+        full_name = me?.full_name || "";
+        email = me?.email || "";
+      } catch {
+        /* ignore */
+      }
+      if (cancelled) return;
+      setForm({ full_name, email, skills: [], certifications: [], education: [], employment_history: [], preferred_job_titles: [], alternative_job_titles: [], excluded_job_titles: [], preferred_locations: [], preferred_industries: [], excluded_industries: [] });
+    }
     if (candidates.length) setForm(candidates[0]);
-    else setForm({ full_name: "", skills: [], certifications: [], education: [], employment_history: [], preferred_job_titles: [], alternative_job_titles: [], excluded_job_titles: [], preferred_locations: [], preferred_industries: [], excluded_industries: [] });
+    else initBlank();
+    return () => { cancelled = true; };
   }, [candidates]);
 
   function set(field, value) { setForm({ ...form, [field]: value }); }
