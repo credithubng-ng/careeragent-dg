@@ -15,6 +15,30 @@ import {
 
 const CV_TYPES = ["Master CV", "Data Governance Manager CV", "Head of Data Governance CV", "Data Quality and Governance CV", "Financial Services Data Governance CV", "Public Sector Data Governance CV", "Contract and Interim CV", "Other"];
 const STATUSES = ["Draft", "Active", "Archived"];
+const PRIMARY_TARGET_ROLES = [
+  "Head of Data Governance",
+  "Data Governance Manager",
+  "Data Governance Lead",
+  "Data Governance Consultant",
+  "Data Quality Manager",
+  "Data Management Lead",
+  "Information Governance Manager",
+  "Data Protection Officer",
+  "Chief Data Officer",
+  "Data Stewardship Manager",
+];
+const PRIMARY_TARGET_INDUSTRIES = [
+  "Financial Services",
+  "Public Sector",
+  "Healthcare",
+  "Retail",
+  "Energy & Utilities",
+  "Telecommunications",
+  "Central Government",
+  "Insurance",
+  "Technology",
+  "Pharmaceuticals",
+];
 
 export default function CVLibrary() {
   const { data: cvs, loading, refetch } = useCollection("CV", () => base44.entities.CV.list("-created_date", 100));
@@ -248,8 +272,8 @@ export default function CVLibrary() {
                 <Field label="CV type"><select value={editing.cv_type} disabled={editing.is_master} onChange={(event) => setEditing({ ...editing, cv_type: event.target.value })} className="w-full rounded-lg border border-input bg-card px-3 py-2 text-sm disabled:opacity-70">{CV_TYPES.map((type) => <option key={type}>{type}</option>)}</select></Field>
                 <Field label="Version"><input value={editing.version_number} onChange={(event) => setEditing({ ...editing, version_number: event.target.value })} className="w-full rounded-lg border border-input bg-card px-3 py-2 text-sm" /></Field>
                 <Field label="Status"><select value={editing.status} onChange={(event) => setEditing({ ...editing, status: event.target.value })} className="w-full rounded-lg border border-input bg-card px-3 py-2 text-sm">{STATUSES.map((status) => <option key={status}>{status}</option>)}</select></Field>
-                <Field label="Primary target role"><input value={editing.primary_target_role || ""} onChange={(event) => setEditing({ ...editing, primary_target_role: event.target.value })} className="w-full rounded-lg border border-input bg-card px-3 py-2 text-sm" /></Field>
-                <Field label="Primary target industry"><input value={editing.primary_target_industry || ""} onChange={(event) => setEditing({ ...editing, primary_target_industry: event.target.value })} className="w-full rounded-lg border border-input bg-card px-3 py-2 text-sm" /></Field>
+                <Field label="Primary target role"><select value={editing.primary_target_role || ""} onChange={(event) => setEditing({ ...editing, primary_target_role: event.target.value })} className="w-full rounded-lg border border-input bg-card px-3 py-2 text-sm"><option value="">Select target role…</option>{PRIMARY_TARGET_ROLES.map((role) => <option key={role}>{role}</option>)}</select></Field>
+                <Field label="Primary target industry"><select value={editing.primary_target_industry || ""} onChange={(event) => setEditing({ ...editing, primary_target_industry: event.target.value })} className="w-full rounded-lg border border-input bg-card px-3 py-2 text-sm"><option value="">Select target industry…</option>{PRIMARY_TARGET_INDUSTRIES.map((industry) => <option key={industry}>{industry}</option>)}</select></Field>
               </div>
               <Field label="Professional summary"><textarea value={editing.professional_summary || ""} onChange={(event) => setEditing({ ...editing, professional_summary: event.target.value })} className="w-full min-h-[80px] rounded-lg border border-input bg-card p-3 text-sm" /></Field>
               <Field label="Key skills (one per line)"><textarea value={Array.isArray(editing.key_skills) ? editing.key_skills.join("\n") : editing.key_skills || ""} onChange={(event) => setEditing({ ...editing, key_skills: event.target.value })} className="w-full min-h-[80px] rounded-lg border border-input bg-card p-3 text-sm" /></Field>
