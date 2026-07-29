@@ -19,12 +19,48 @@ const CANDIDATE_PROFILE_SCHEMA = {
         telephone: { type: "string" },
         current_location: { type: "string" },
         linkedin_url: { type: "string" },
+        right_to_work: {
+          type: "string",
+          enum: ["UK Citizen", "UK ILR/Settled", "UK Visa Sponsorship Required", "EU Right to Work", "Other"],
+        },
+        preferred_contact_method: { type: "string", enum: ["Email", "Phone", "LinkedIn"] },
         current_job_title: { type: "string" },
         current_employer: { type: "string" },
         years_total_experience: { type: "number" },
         years_leadership: { type: "number" },
         years_data_governance: { type: "number" },
         current_industry: { type: "string" },
+        current_salary: { type: "number" },
+        notice_period: { type: "string" },
+        current_employment_status: {
+          type: "string",
+          enum: ["Employed", "Noticed", "Contract Ending", "Available Immediately", "Unemployed"],
+        },
+        preferred_job_titles: { type: "array", items: { type: "string" } },
+        alternative_job_titles: { type: "array", items: { type: "string" } },
+        excluded_job_titles: { type: "array", items: { type: "string" } },
+        min_salary: { type: "number" },
+        preferred_salary: { type: "number" },
+        employment_type_preference: {
+          type: "string",
+          enum: ["Permanent", "Contract", "Interim", "Open to All"],
+        },
+        working_pattern_preference: {
+          type: "string",
+          enum: ["Full-time", "Part-time", "Flexible"],
+        },
+        preferred_locations: { type: "array", items: { type: "string" } },
+        max_commute_distance: { type: "number" },
+        work_arrangement_preference: {
+          type: "string",
+          enum: ["Remote", "Hybrid", "Office", "Open"],
+        },
+        willing_to_travel: { type: "boolean" },
+        willing_to_relocate: { type: "boolean" },
+        preferred_industries: { type: "array", items: { type: "string" } },
+        excluded_industries: { type: "array", items: { type: "string" } },
+        region_preference: { type: "string", enum: ["UK Only", "Europe", "Global Remote"] },
+        deal_breakers: { type: "string" },
         executive_profile: { type: "string" },
         career_achievements: { type: "string" },
         leadership_experience: { type: "string" },
@@ -103,7 +139,7 @@ export async function extractCandidateProfileFromCVText(text) {
   if (!text?.trim()) return {};
   /** @type {any} */
   const result = await base44.integrations.Core.InvokeLLM({
-    prompt: `Extract candidate-profile fields from the CV below. Use only facts explicitly stated in the CV. Do not infer missing experience duration, skill proficiency, contact details, industry or achievements. Leave unknown fields empty.\n\nCV TEXT:\n"""${text}"""`,
+    prompt: `Extract every candidate-profile field supported by the schema from the CV below. Use only facts explicitly stated in the CV. Do not infer preferences, experience duration, skill proficiency, contact details, industry, salary, right-to-work status or achievements. Leave unknown fields empty. Boolean fields must be omitted unless the CV explicitly states them.\n\nCV TEXT:\n"""${text}"""`,
     response_json_schema: CANDIDATE_PROFILE_SCHEMA,
   });
   return result || {};
@@ -146,7 +182,7 @@ export async function uploadAndExtractCV(file, onStageChange = () => {}) {
     onStageChange("Analysing CV content");
     /** @type {any} */
     const llm = await base44.integrations.Core.InvokeLLM({
-      prompt: `Extract the structured CV and candidate-profile fields from the candidate's CV below. Use only facts explicitly stated in the CV. Do not infer experience duration, proficiency, industry, contact details or achievements. Leave unknown fields empty and return only the JSON object matching the schema.\n\nCV TEXT:\n"""${text}"""`,
+      prompt: `Extract the structured CV and every candidate-profile field supported by the schema from the candidate's CV below. Use only facts explicitly stated in the CV. Do not infer preferences, experience duration, proficiency, industry, contact details, salary, right-to-work status or achievements. Leave unknown fields empty. Boolean fields must be omitted unless the CV explicitly states them. Return only the JSON object matching the schema.\n\nCV TEXT:\n"""${text}"""`,
       response_json_schema: CV_EXTRACTION_SCHEMA,
     });
     extracted = { ...llm, extracted_cv_text: text };

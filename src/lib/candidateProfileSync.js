@@ -7,12 +7,27 @@ const SCALAR_FIELDS = [
   "telephone",
   "current_location",
   "linkedin_url",
+  "right_to_work",
+  "preferred_contact_method",
   "current_job_title",
   "current_employer",
   "years_total_experience",
   "years_leadership",
   "years_data_governance",
   "current_industry",
+  "current_salary",
+  "notice_period",
+  "current_employment_status",
+  "min_salary",
+  "preferred_salary",
+  "employment_type_preference",
+  "working_pattern_preference",
+  "max_commute_distance",
+  "work_arrangement_preference",
+  "willing_to_travel",
+  "willing_to_relocate",
+  "region_preference",
+  "deal_breakers",
   "executive_profile",
   "career_achievements",
   "leadership_experience",
@@ -23,15 +38,29 @@ const SCALAR_FIELDS = [
   "budget_management_experience",
 ];
 
+const ARRAY_FIELDS = [
+  "preferred_job_titles",
+  "alternative_job_titles",
+  "excluded_job_titles",
+  "preferred_locations",
+  "preferred_industries",
+  "excluded_industries",
+];
+
 function isBlank(value) {
   return value == null || value === "" || (Array.isArray(value) && value.length === 0);
 }
 
-function mergeUnique(existing = [], incoming = [], key) {
+function itemIdentity(item, keys) {
+  if (typeof item === "string") return item.trim().toLowerCase();
+  return keys.map((key) => String(item?.[key] || "").trim().toLowerCase()).join("|");
+}
+
+function mergeUnique(existing = [], incoming = [], keys = []) {
   const merged = [...existing];
-  const seen = new Set(existing.map((item) => String(item?.[key] || "").trim().toLowerCase()));
+  const seen = new Set(existing.map((item) => itemIdentity(item, keys)));
   for (const item of incoming || []) {
-    const identity = String(item?.[key] || "").trim().toLowerCase();
+    const identity = itemIdentity(item, keys);
     if (identity && !seen.has(identity)) {
       merged.push(item);
       seen.add(identity);
@@ -48,10 +77,23 @@ export function buildCandidateProfileUpdate(candidate, extracted = {}) {
     }
   }
 
-  const skills = mergeUnique(candidate?.skills, extracted.skills, "name");
-  const certifications = mergeUnique(candidate?.certifications, extracted.certifications, "qualification");
-  const education = mergeUnique(candidate?.education, extracted.education, "qualification");
-  const employmentHistory = mergeUnique(candidate?.employment_history, extracted.employment_history, "job_title");
+  for (const field of ARRAY_FIELDS) {
+    const merged = mergeUnique(candidate?.[field], extracted[field]);
+    if (merged.length > (candidate?.[field] || []).length) update[field] = merged;
+  }
+
+  const skills = mergeUnique(candidate?.skills, extracted.skills, ["name"]);
+  const certifications = mergeUnique(
+    candidate?.certifications,
+    extracted.certifications,
+    ["qualification", "institution"]
+  );
+  const education = mergeUnique(candidate?.education, extracted.education, ["qualification", "institution"]);
+  const employmentHistory = mergeUnique(
+    candidate?.employment_history,
+    extracted.employment_history,
+    ["job_title", "employer", "start_date"]
+  );
 
   if (skills.length > (candidate?.skills || []).length) update.skills = skills;
   if (certifications.length > (candidate?.certifications || []).length) update.certifications = certifications;
@@ -63,16 +105,17 @@ export function buildCandidateProfileUpdate(candidate, extracted = {}) {
 }
 
 export async function syncCandidateProfileFromCV(candidate, extracted) {
-  if (!extracted || typeof extracted !== "object") return { updated: false };
+  if (!extracted || typeof extracted !== "object") return { updated: false, fields: [] };
   const update = buildCandidateProfileUpdate(candidate, extracted);
-  if (Object.keys(update).length === 0) return { updated: false };
+  const fields = Object.keys(update);
+  if (fields.length === 0) return { updated: false, fields };
 
   if (candidate?.id) {
     await base44.entities.Candidate.update(candidate.id, update);
-    return { updated: true };
+    return { updated: true, fields };
   }
 
-  if (!update.full_name) return { updated: false };
+  if (!update.full_name) return { updated: false, fields: [] };
   await createOwnedRecord("Candidate", {
     ...update,
     skills: update.skills || [],
@@ -80,5 +123,5 @@ export async function syncCandidateProfileFromCV(candidate, extracted) {
     education: update.education || [],
     employment_history: update.employment_history || [],
   });
-  return { updated: true };
+  return { updated: true, fields };
 }

@@ -130,6 +130,44 @@ export default function CVLibrary() {
   const [uploadStage, setUploadStage] = useState("");
   const [saving, setSaving] = useState(false);
   const [busyCVId, setBusyCVId] = useState(null);
+  const masterCount = cvs.filter((cv) => cv.is_master).length;
+
+  function addCVMetadataToProfile(cv, extracted = {}) {
+    const targetRoles = cv.primary_target_role
+      ? cv.primary_target_role.split(",").map((item) => item.trim()).filter(Boolean)
+      : [];
+    const targetIndustries = cv.primary_target_industry
+      ? cv.primary_target_industry.split(",").map((item) => item.trim()).filter(Boolean)
+      : [];
+    return {
+      ...extracted,
+      executive_profile: extracted.executive_profile || cv.professional_summary || "",
+      career_achievements:
+        extracted.career_achievements ||
+        (Array.isArray(cv.key_achievements) ? cv.key_achievements.join("\n") : ""),
+      skills:
+        extracted.skills?.length
+          ? extracted.skills
+          : (Array.isArray(cv.key_skills) ? cv.key_skills : []).map((name) => ({
+              name,
+              evidence: "Listed in Master CV",
+            })),
+      preferred_job_titles: extracted.preferred_job_titles?.length
+        ? extracted.preferred_job_titles
+        : targetRoles,
+      preferred_industries: extracted.preferred_industries?.length
+        ? extracted.preferred_industries
+        : targetIndustries,
+    };
+  }
+
+  async function populateProfileFromCV(cv) {
+    const extracted = await extractCandidateProfileFromCVText(cv.extracted_cv_text);
+    return syncCandidateProfileFromCV(
+      candidates[0],
+      addCVMetadataToProfile(cv, extracted)
+    );
+  }
 
   function blank() {
     const needsMaster = !cvs.some((cv) => cv.is_master);
@@ -194,7 +232,7 @@ export default function CVLibrary() {
   }
 
   async function setMaster(cv) {
-    if (cv.is_master) return;
+    if (cv.is_master && masterCount === 1) return;
     setBusyCVId(cv.id);
     try {
       const others = cvs.filter((item) => item.is_master && item.id !== cv.id);
@@ -202,10 +240,15 @@ export default function CVLibrary() {
         await base44.entities.CV.update(other.id, { is_master: false });
       }
       await base44.entities.CV.update(cv.id, { is_master: true, cv_type: "Master CV" });
+      const result = await populateProfileFromCV(cv);
       await refetch();
-      toast.success("Marked as master CV");
-    } catch {
-      toast.error("The master CV could not be changed. Please try again.");
+      toast.success(
+        result.updated
+          ? `Master CV selected and ${result.fields.length} profile section${result.fields.length === 1 ? "" : "s"} populated`
+          : "Master CV selected; existing profile information was preserved"
+      );
+    } catch (error) {
+      toast.error(error?.message || "The master CV could not be changed. Please try again.");
     } finally {
       setBusyCVId(null);
     }
@@ -245,15 +288,20 @@ export default function CVLibrary() {
       }
 
       let profileUpdated = false;
+      let populatedFieldCount = 0;
       if (cv.is_master) {
         const profileData = candidate_profile ||
           await extractCandidateProfileFromCVText(cv.extracted_cv_text);
-        const result = await syncCandidateProfileFromCV(candidate, profileData);
+        const result = await syncCandidateProfileFromCV(
+          candidate,
+          addCVMetadataToProfile(cv, profileData)
+        );
         profileUpdated = result.updated;
+        populatedFieldCount = result.fields.length;
       }
       toast.success(
         profileUpdated
-          ? `Master CV ${id ? "updated" : "added"} and candidate profile populated`
+          ? `Master CV ${id ? "updated" : "added"} and ${populatedFieldCount} profile section${populatedFieldCount === 1 ? "" : "s"} populated`
           : `CV ${id ? "updated" : "added"}`
       );
       setEditing(null);
@@ -304,6 +352,12 @@ export default function CVLibrary() {
         actions={<button onClick={() => setEditing(blank())} className="inline-flex items-center gap-2 rounded-lg bg-primary text-primary-foreground px-3 py-2 text-sm font-medium hover:bg-primary/90"><Plus className="h-4 w-4" /> Add CV</button>}
       />
 
+      {masterCount > 1 && (
+        <div role="alert" className="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          More than one legacy CV is marked as Master. Choose “Keep as master” on the correct CV; the others will be unmarked.
+        </div>
+      )}
+
       {cvs.length === 0 && !editing ? (
         <EmptyState title="No CVs yet" description="Upload your master CV as a PDF or DOCX document." action={<button onClick={() => setEditing(blank())} className="inline-flex items-center gap-2 rounded-lg bg-primary text-primary-foreground px-3 py-2 text-sm font-medium"><Upload className="h-4 w-4" /> Upload master CV</button>} />
       ) : (
@@ -329,7 +383,7 @@ export default function CVLibrary() {
               <div className="flex flex-wrap gap-x-3 gap-y-2 mt-3 pt-3 border-t border-border">
                 {cv.file_uri && <button disabled={busyCVId === cv.id} onClick={() => openDocument(cv)} className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline disabled:opacity-50"><ExternalLink className="h-3 w-3" /> Open</button>}
                 <button onClick={() => setEditing(cv)} className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"><Edit className="h-3 w-3" /> Edit</button>
-                {!cv.is_master && <button disabled={busyCVId === cv.id} onClick={() => setMaster(cv)} className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-amber-600 disabled:opacity-50"><Star className="h-3 w-3" /> Set master</button>}
+                {(!cv.is_master || masterCount > 1) && <button disabled={busyCVId === cv.id} onClick={() => setMaster(cv)} className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground hover:text-amber-600 disabled:opacity-50"><Star className="h-3 w-3" /> {cv.is_master ? "Keep as master" : "Set master"}</button>}
                 <button disabled={busyCVId === cv.id} onClick={() => remove(cv.id)} className="inline-flex items-center gap-1 text-xs font-medium text-rose-500 hover:underline sm:ml-auto disabled:opacity-50"><X className="h-3 w-3" /> Delete</button>
               </div>
             </div>

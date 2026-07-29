@@ -60,8 +60,21 @@ export default function CandidateProfile() {
 
   function arrayItem(field, item) { setForm({ ...form, [field]: [...(form[field] || []), item] }); }
   function removeArrayItem(field, idx) { setForm({ ...form, [field]: form[field].filter((_, i) => i !== idx) }); }
+  function updateArrayItem(field, idx, itemField, value) {
+    const items = [...(form[field] || [])];
+    items[idx] = { ...items[idx], [itemField]: value };
+    setForm({ ...form, [field]: items });
+  }
 
   async function save() {
+    if (!form.full_name?.trim()) {
+      toast.error("Full name is required");
+      return;
+    }
+    if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
+      toast.error("Enter a valid email address");
+      return;
+    }
     setSaving(true);
     try {
       if (form.id) await base44.entities.Candidate.update(form.id, form);
@@ -176,6 +189,27 @@ export default function CandidateProfile() {
               </div>
             ))}
           </div>
+        </SectionCard>
+
+        <SectionCard title="Employment History" actions={<button onClick={() => arrayItem("employment_history", { job_title: "", employer: "", start_date: "", end_date: "", summary: "" })} className="inline-flex items-center gap-1 text-sm font-medium text-primary"><Plus className="h-4 w-4" /> Add role</button>}>
+          {(form.employment_history || []).length === 0 ? <p className="text-sm text-muted-foreground">No employment history extracted.</p> : (
+            <div className="space-y-4">
+              {form.employment_history.map((role, i) => (
+                <div key={i} className="rounded-lg border border-border p-3">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <Input label="Job title" value={role.job_title || ""} onChange={(value) => updateArrayItem("employment_history", i, "job_title", value)} />
+                    <Input label="Employer" value={role.employer || ""} onChange={(value) => updateArrayItem("employment_history", i, "employer", value)} />
+                    <Input label="Start date" value={role.start_date || ""} onChange={(value) => updateArrayItem("employment_history", i, "start_date", value)} />
+                    <Input label="End date" value={role.end_date || ""} onChange={(value) => updateArrayItem("employment_history", i, "end_date", value)} />
+                    <div className="md:col-span-2">
+                      <TextArea label="Role summary" value={role.summary || ""} onChange={(value) => updateArrayItem("employment_history", i, "summary", value)} />
+                    </div>
+                  </div>
+                  <button onClick={() => removeArrayItem("employment_history", i)} className="mt-2 inline-flex items-center gap-1 text-sm text-rose-500"><Trash2 className="h-4 w-4" /> Remove role</button>
+                </div>
+              ))}
+            </div>
+          )}
         </SectionCard>
       </div>
     </div>
