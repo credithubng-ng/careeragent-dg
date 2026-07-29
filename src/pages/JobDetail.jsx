@@ -4,7 +4,7 @@ import { base44 } from "@/api/base44Client";
 import { useCollection } from "@/lib/entityHooks";
 import { PageHeader, SectionCard, Loading, EmptyState, StatusBadge, Notice } from "@/components/ui-kit";
 import { ukDate, daysUntil, gbp } from "@/lib/format";
-import { analyseJobMatch } from "@/lib/careerAI";
+import { analyseJobMatch, getUsableCandidateCVs } from "@/lib/careerAI";
 import { ArrowLeft, Sparkles, Flame, Check, X, HelpCircle, AlertTriangle, Wand2, Plus, ExternalLink, CalendarPlus } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { createOwnedRecord } from "@/lib/ownedEntities";
@@ -29,8 +29,9 @@ export default function JobDetail() {
   const [match, setMatch] = useState(null);
   const [loading, setLoading] = useState(true);
   const [scoring, setScoring] = useState(null);
-  const { data: candidates } = useCollection("Candidate", () => base44.entities.Candidate.list());
-  const { data: cvs } = useCollection("CV", () => base44.entities.CV.list());
+  const [matching, setMatching] = useState(false);
+  const { data: candidates, loading: candidatesLoading } = useCollection("Candidate", () => base44.entities.Candidate.list());
+  const { data: cvs, loading: cvsLoading } = useCollection("CV", () => base44.entities.CV.list());
   const { data: matches } = useCollection("JobMatch", () => base44.entities.JobMatch.filter({ job_id: id }, "-created_date", 5));
 
   useEffect(() => {
@@ -38,7 +39,6 @@ export default function JobDetail() {
       try {
         const j = await base44.entities.Job.get(id);
         setJob(j);
-        setMatch(matches[0] || null);
         const settings = await base44.entities.ScoringSetting.list();
         setScoring(settings[0] || null);
       } finally {
@@ -47,9 +47,26 @@ export default function JobDetail() {
     })();
   }, [id]);
 
+  useEffect(() => {
+    setMatch(matches[0] || null);
+  }, [matches]);
+
   async function runMatch() {
+    if (candidatesLoading || cvsLoading) {
+      toast.error("Your profile and Master CV are still loading. Please try again.");
+      return;
+    }
     const candidate = candidates[0];
     if (!candidate) { toast.error("Create a candidate profile first"); return; }
+    if (getUsableCandidateCVs(cvs).length === 0) {
+      toast.error("Upload and process a Master CV before running match analysis.");
+      return;
+    }
+    if (!job.job_description && !job.responsibilities && !job.essential_requirements && !job.desirable_requirements) {
+      toast.error("Add the job description or requirements before running match analysis.");
+      return;
+    }
+    setMatching(true);
     const t = toast.loading("Analysing match…");
     try {
       const result = await analyseJobMatch(job, candidate, cvs, scoring);
@@ -60,7 +77,9 @@ export default function JobDetail() {
       setJob({ ...job, match_score: result.total_score, recommendation: result.recommendation });
       toast.success("Match analysis complete", { id: t });
     } catch (e) {
-      toast.error("Match analysis failed", { id: t });
+      toast.error(e?.message || "Match analysis failed. Please try again.", { id: t });
+    } finally {
+      setMatching(false);
     }
   }
 
@@ -125,8 +144,8 @@ export default function JobDetail() {
           {/* Match analysis */}
           <SectionCard
             title="AI Match Analysis"
-            description="The match score is a decision-support tool and does not guarantee recruiter or employer interest."
-            actions={!match ? <button onClick={runMatch} className="inline-flex items-center gap-1.5 rounded-lg bg-primary text-primary-foreground px-3 py-1.5 text-sm font-medium hover:bg-primary/90"><Sparkles className="h-3.5 w-3.5" /> Run Analysis</button> : null}
+            description="Positive match claims are shown only when their evidence can be verified in your Candidate Profile or Master CV."
+            actions={<button onClick={runMatch} disabled={matching} className="inline-flex items-center gap-1.5 rounded-lg bg-primary text-primary-foreground px-3 py-1.5 text-sm font-medium hover:bg-primary/90 disabled:opacity-50"><Sparkles className="h-3.5 w-3.5" /> {matching ? "Analysing…" : match ? "Run Again" : "Run Analysis"}</button>}
           >
             {match ? (
               <div className="space-y-5">
@@ -158,7 +177,7 @@ export default function JobDetail() {
                 )}
               </div>
             ) : (
-              <EmptyState title="No match analysis yet" description="Run the AI match analysis to score this job against your profile, identify gaps and get a recommendation." action={<button onClick={runMatch} className="inline-flex items-center gap-1.5 rounded-lg bg-primary text-primary-foreground px-3 py-2 text-sm font-medium"><Sparkles className="h-4 w-4" /> Run Match Analysis</button>} />
+              <EmptyState title="No match analysis yet" description="Run the AI match analysis to score this job against your profile, identify gaps and get a recommendation." action={<button onClick={runMatch} disabled={matching} className="inline-flex items-center gap-1.5 rounded-lg bg-primary text-primary-foreground px-3 py-2 text-sm font-medium disabled:opacity-50"><Sparkles className="h-4 w-4" /> {matching ? "Analysing…" : "Run Match Analysis"}</button>} />
             )}
           </SectionCard>
 
