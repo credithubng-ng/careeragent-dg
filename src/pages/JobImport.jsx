@@ -5,7 +5,7 @@ import { useCollection } from "@/lib/entityHooks";
 import { PageHeader, SectionCard } from "@/components/ui-kit";
 import { extractJobFromText } from "@/lib/careerAI";
 import { todayISO } from "@/lib/format";
-import { Sparkles, Save, ArrowLeft } from "lucide-react";
+import { Sparkles, Save, ArrowLeft, AlertCircle } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { createOwnedRecord } from "@/lib/ownedEntities";
 import { findDuplicateJob, normaliseJobPayload, validateJob } from "@/lib/jobCapture";
@@ -37,6 +37,7 @@ export default function JobImport() {
   const [extracting, setExtracting] = useState(false);
   const [review, setReview] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
 
   async function extract() {
     if (!text.trim()) { toast.error("Paste a job description first"); return; }
@@ -55,6 +56,7 @@ export default function JobImport() {
         currency: result.currency || "GBP",
         job_status: "New",
       });
+      setSaveError("");
       toast.success("Extraction complete — review and save", { id: t });
     } catch (error) {
       toast.error(error?.message || "The job description could not be extracted.", { id: t });
@@ -62,15 +64,19 @@ export default function JobImport() {
   }
 
   async function save() {
+    setSaveError("");
     const payload = normaliseJobPayload(review);
     const validationError = validateJob(payload);
     if (validationError) {
+      setSaveError(validationError);
       toast.error(validationError);
       return;
     }
     const duplicate = findDuplicateJob(jobs, payload);
     if (duplicate) {
-      toast.error(`This job already exists: ${duplicate.job_title} at ${duplicate.employer || duplicate.recruitment_agency}.`);
+      const message = `This job already exists: ${duplicate.job_title} at ${duplicate.employer || duplicate.recruitment_agency}.`;
+      setSaveError(message);
+      toast.error(message);
       return;
     }
     setSaving(true);
@@ -80,7 +86,9 @@ export default function JobImport() {
       toast.success("Job saved");
       navigate("/jobs");
     } catch (error) {
-      toast.error(error?.message || "The job could not be saved. Please try again.");
+      const message = error?.message || "The job could not be saved. Please try again.";
+      setSaveError(message);
+      toast.error(message);
     } finally {
       setSaving(false);
     }
@@ -104,7 +112,11 @@ export default function JobImport() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {Object.entries(review).filter(([key]) => !LONG_FIELDS.has(key)).map(([key, value]) => (
                 <div key={key}>
-                  <label className="block text-xs font-medium text-muted-foreground mb-1 capitalize">{key.replace(/_/g, " ")}{key === "job_title" && <span className="text-rose-500"> *</span>}</label>
+                  <label className="block text-xs font-medium text-muted-foreground mb-1 capitalize">
+                    {key.replace(/_/g, " ")}
+                    {key === "job_title" && <span className="text-rose-500"> *</span>}
+                    {(key === "employer" || key === "recruitment_agency") && <span className="normal-case"> (one required)</span>}
+                  </label>
                   {SELECT_OPTIONS[key] ? (
                     <select value={value ?? ""} onChange={(event) => setReview({ ...review, [key]: event.target.value })} className="w-full rounded-lg border border-input bg-card px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring">
                       {SELECT_OPTIONS[key].map((option) => <option key={option} value={option}>{option || "—"}</option>)}
@@ -122,8 +134,17 @@ export default function JobImport() {
               </div>
             ))}
           </SectionCard>
+          <p className="text-xs text-muted-foreground">
+            Job title is required. Enter either an employer or a recruitment agency.
+          </p>
+          {saveError && (
+            <div role="alert" className="flex items-start gap-2 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>{saveError}</span>
+            </div>
+          )}
           <div className="flex justify-end gap-2">
-            <button disabled={saving} onClick={() => setReview(null)} className="rounded-lg border border-border bg-card px-4 py-2 text-sm font-medium hover:bg-muted disabled:opacity-50">Re-extract</button>
+            <button disabled={saving} onClick={() => { setReview(null); setSaveError(""); }} className="rounded-lg border border-border bg-card px-4 py-2 text-sm font-medium hover:bg-muted disabled:opacity-50">Re-extract</button>
             <button disabled={saving} onClick={save} className="inline-flex items-center gap-2 rounded-lg bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 disabled:opacity-50"><Save className="h-4 w-4" /> {saving ? "Saving…" : "Save Job"}</button>
           </div>
         </div>

@@ -4,7 +4,7 @@ import { base44 } from "@/api/base44Client";
 import { useCollection } from "@/lib/entityHooks";
 import { PageHeader, SectionCard, Loading } from "@/components/ui-kit";
 import { todayISO } from "@/lib/format";
-import { ArrowLeft, Save } from "lucide-react";
+import { AlertCircle, ArrowLeft, Save } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { createOwnedRecord } from "@/lib/ownedEntities";
 import { findDuplicateJob, normaliseJobPayload, validateJob } from "@/lib/jobCapture";
@@ -48,6 +48,7 @@ export default function JobForm() {
   const [form, setForm] = useState({ date_discovered: todayISO(), currency: "GBP", job_status: "New" });
   const [loading, setLoading] = useState(editing);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState("");
   const { data: candidates } = useCollection("Candidate", () => base44.entities.Candidate.list());
   const { data: jobs } = useCollection("Job", () => base44.entities.Job.list("-created_date", 500));
 
@@ -66,16 +67,20 @@ export default function JobForm() {
 
   async function save(e) {
     e.preventDefault();
+    setSaveError("");
     const candidate = candidates[0];
     const payload = normaliseJobPayload({ ...form, candidate_id: candidate?.id || "" });
     const validationError = validateJob(payload);
     if (validationError) {
+      setSaveError(validationError);
       toast.error(validationError);
       return;
     }
     const duplicate = findDuplicateJob(jobs, payload, id);
     if (duplicate) {
-      toast.error(`This job already exists: ${duplicate.job_title} at ${duplicate.employer || duplicate.recruitment_agency}.`);
+      const message = `This job already exists: ${duplicate.job_title} at ${duplicate.employer || duplicate.recruitment_agency}.`;
+      setSaveError(message);
+      toast.error(message);
       return;
     }
     setSaving(true);
@@ -89,7 +94,9 @@ export default function JobForm() {
       }
       navigate("/jobs");
     } catch (error) {
-      toast.error(error?.message || "The job could not be saved. Please try again.");
+      const message = error?.message || "The job could not be saved. Please try again.";
+      setSaveError(message);
+      toast.error(message);
     } finally {
       setSaving(false);
     }
@@ -109,7 +116,11 @@ export default function JobForm() {
                 const [name, label, type, options] = f;
                 return (
                   <div key={name} className={type === "textarea" ? "md:col-span-2" : ""}>
-                    <label className="block text-sm font-medium text-foreground mb-1">{label}{f[3] === true && <span className="text-rose-500"> *</span>}</label>
+                    <label className="block text-sm font-medium text-foreground mb-1">
+                      {label}
+                      {f[3] === true && <span className="text-rose-500"> *</span>}
+                      {(name === "employer" || name === "recruitment_agency") && <span className="text-muted-foreground"> (one required)</span>}
+                    </label>
                     {type === "textarea" ? (
                       <textarea value={form[name] || ""} onChange={(e) => setForm({ ...form, [name]: e.target.value })} className="w-full min-h-[100px] rounded-lg border border-input bg-card p-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
                     ) : type === "select" ? (
@@ -125,6 +136,15 @@ export default function JobForm() {
             </div>
           </SectionCard>
         ))}
+        <p className="text-xs text-muted-foreground">
+          Job title is required. Enter either an employer or a recruitment agency.
+        </p>
+        {saveError && (
+          <div role="alert" className="flex items-start gap-2 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>{saveError}</span>
+          </div>
+        )}
         <div className="flex justify-end gap-2">
           <button type="button" disabled={saving} onClick={() => navigate("/jobs")} className="rounded-lg border border-border bg-card px-4 py-2 text-sm font-medium hover:bg-muted disabled:opacity-50">Cancel</button>
           <button type="submit" disabled={saving} className="inline-flex items-center gap-2 rounded-lg bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 disabled:opacity-50"><Save className="h-4 w-4" /> {saving ? "Saving…" : editing ? "Update Job" : "Add Job"}</button>
