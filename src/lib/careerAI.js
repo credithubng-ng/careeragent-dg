@@ -91,17 +91,27 @@ export function buildCandidateContext(candidate, cvs) {
 export async function extractJobFromText(text) {
   const today = new Date().toISOString().slice(0, 10);
   const res = await base44.integrations.Core.InvokeLLM({
-    prompt: `You are a job-description extraction engine for UK Data Governance roles. Extract structured fields from the following job advert. Leave unknown fields empty ("" or 0). Parse salary ranges into numeric min/max in GBP where possible. Use UK date format for closing_date (YYYY-MM-DD). Set work_arrangement to Remote/Hybrid/Office. Set employment_type to Permanent/Contract/Interim/Fixed Term/Part-time. Identify the sector (e.g. Financial Services, Public Sector, Healthcare, Retail, Technology).\n\nToday: ${today}\n\nJOB TEXT:\n${text}`,
+    prompt: `You are a job-description extraction engine for UK Data Governance roles. Extract only facts stated in the following job advert. Leave unknown fields empty ("" or 0); do not infer missing employer, salary, dates, requirements or contact details. Parse salary ranges into numeric min/max without converting currencies. Use YYYY-MM-DD for dates. Set work_arrangement and employment_type only to one of the schema values. Identify the stated sector where possible.\n\nToday: ${today}\n\nJOB TEXT:\n${text}`,
     response_json_schema: {
       type: "object",
       properties: {
         job_title: { type: "string" },
         employer: { type: "string" },
         recruitment_agency: { type: "string" },
+        job_source_name: { type: "string" },
+        original_job_url: { type: "string" },
+        job_reference: { type: "string" },
+        date_posted: { type: "string" },
         location: { type: "string" },
         country: { type: "string" },
-        work_arrangement: { type: "string" },
-        employment_type: { type: "string" },
+        work_arrangement: {
+          type: "string",
+          enum: ["", "Remote", "Hybrid", "Office", "Unspecified"],
+        },
+        employment_type: {
+          type: "string",
+          enum: ["", "Permanent", "Contract", "Interim", "Fixed Term", "Part-time"],
+        },
         contract_length: { type: "string" },
         salary_min: { type: "number" },
         salary_max: { type: "number" },

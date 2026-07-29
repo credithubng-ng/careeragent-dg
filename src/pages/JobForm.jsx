@@ -7,6 +7,7 @@ import { todayISO } from "@/lib/format";
 import { ArrowLeft, Save } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { createOwnedRecord } from "@/lib/ownedEntities";
+import { findDuplicateJob, normaliseJobPayload, validateJob } from "@/lib/jobCapture";
 
 const FIELDS = [
   { section: "Basic", fields: [
@@ -46,7 +47,9 @@ export default function JobForm() {
   const editing = Boolean(id);
   const [form, setForm] = useState({ date_discovered: todayISO(), currency: "GBP", job_status: "New" });
   const [loading, setLoading] = useState(editing);
+  const [saving, setSaving] = useState(false);
   const { data: candidates } = useCollection("Candidate", () => base44.entities.Candidate.list());
+  const { data: jobs } = useCollection("Job", () => base44.entities.Job.list("-created_date", 500));
 
   useEffect(() => {
     if (!editing) return;
@@ -54,15 +57,29 @@ export default function JobForm() {
       try {
         const j = await base44.entities.Job.get(id);
         setForm(j);
+      } catch (error) {
+        toast.error(error?.message || "The job could not be loaded.");
+        navigate("/jobs");
       } finally { setLoading(false); }
     })();
-  }, [id]);
+  }, [editing, id, navigate]);
 
   async function save(e) {
     e.preventDefault();
+    const candidate = candidates[0];
+    const payload = normaliseJobPayload({ ...form, candidate_id: candidate?.id || "" });
+    const validationError = validateJob(payload);
+    if (validationError) {
+      toast.error(validationError);
+      return;
+    }
+    const duplicate = findDuplicateJob(jobs, payload, id);
+    if (duplicate) {
+      toast.error(`This job already exists: ${duplicate.job_title} at ${duplicate.employer || duplicate.recruitment_agency}.`);
+      return;
+    }
+    setSaving(true);
     try {
-      const candidate = candidates[0];
-      const payload = { ...form, candidate_id: candidate?.id };
       if (editing) {
         await base44.entities.Job.update(id, payload);
         toast.success("Job updated");
@@ -71,7 +88,11 @@ export default function JobForm() {
         toast.success("Job added");
       }
       navigate("/jobs");
-    } catch (err) { toast.error("Failed to save job"); }
+    } catch (error) {
+      toast.error(error?.message || "The job could not be saved. Please try again.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   if (loading) return <Loading />;
@@ -96,7 +117,7 @@ export default function JobForm() {
                         {options.map((o) => <option key={o} value={o}>{o || "—"}</option>)}
                       </select>
                     ) : (
-                      <input type={type} value={form[name] || ""} onChange={(e) => setForm({ ...form, [name]: e.target.value })} className="w-full rounded-lg border border-input bg-card px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+                      <input type={type} min={type === "number" ? "0" : undefined} required={f[3] === true} value={form[name] || ""} onChange={(e) => setForm({ ...form, [name]: e.target.value })} className="w-full rounded-lg border border-input bg-card px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
                     )}
                   </div>
                 );
@@ -105,8 +126,8 @@ export default function JobForm() {
           </SectionCard>
         ))}
         <div className="flex justify-end gap-2">
-          <button type="button" onClick={() => navigate("/jobs")} className="rounded-lg border border-border bg-card px-4 py-2 text-sm font-medium hover:bg-muted">Cancel</button>
-          <button type="submit" className="inline-flex items-center gap-2 rounded-lg bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90"><Save className="h-4 w-4" /> {editing ? "Update Job" : "Add Job"}</button>
+          <button type="button" disabled={saving} onClick={() => navigate("/jobs")} className="rounded-lg border border-border bg-card px-4 py-2 text-sm font-medium hover:bg-muted disabled:opacity-50">Cancel</button>
+          <button type="submit" disabled={saving} className="inline-flex items-center gap-2 rounded-lg bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 disabled:opacity-50"><Save className="h-4 w-4" /> {saving ? "Saving…" : editing ? "Update Job" : "Add Job"}</button>
         </div>
       </form>
     </div>
