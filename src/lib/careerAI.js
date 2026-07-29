@@ -22,6 +22,9 @@ export const DEFAULT_HARD_STOPS = [
   "Job is expired",
 ];
 
+const SCORING_CATEGORIES = Object.keys(DEFAULT_WEIGHTS);
+const EVIDENCE_SIMILARITY_THRESHOLD = 0.72;
+
 const GOVERNANCE_TITLES = [
   "Head of Data Governance", "Director of Data Governance", "Data Governance Manager",
   "Data Governance Lead", "Senior Data Governance Manager", "Data Quality Manager",
@@ -101,29 +104,75 @@ function normaliseEvidence(value) {
   return String(value || "")
     .toLowerCase()
     .replace(/[“”‘’]/g, "'")
+    .replace(/[^a-z0-9£%+.'-]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 }
 
+function evidenceTokens(value) {
+  return normaliseEvidence(value).match(/[a-z0-9£%+]+(?:['.-][a-z0-9£%+]+)*/g) || [];
+}
+
+function tokenOverlap(left, right) {
+  const leftCounts = new Map();
+  const rightCounts = new Map();
+  left.forEach((token) => leftCounts.set(token, (leftCounts.get(token) || 0) + 1));
+  right.forEach((token) => rightCounts.set(token, (rightCounts.get(token) || 0) + 1));
+  let shared = 0;
+  leftCounts.forEach((count, token) => {
+    shared += Math.min(count, rightCounts.get(token) || 0);
+  });
+  return shared;
+}
+
+function hasGroundedEvidence(evidence, sourceText) {
+  const normalisedEvidence = normaliseEvidence(evidence);
+  const normalisedSource = normaliseEvidence(sourceText);
+  if (!normalisedEvidence || !normalisedSource) return false;
+  if (normalisedSource.includes(normalisedEvidence)) return true;
+
+  const expected = evidenceTokens(normalisedEvidence);
+  const source = evidenceTokens(normalisedSource);
+  if (expected.length < 4 || source.length < expected.length) return false;
+
+  const minimumWindow = Math.max(4, expected.length - 2);
+  const maximumWindow = Math.min(source.length, expected.length + 2);
+  for (let size = minimumWindow; size <= maximumWindow; size += 1) {
+    for (let start = 0; start <= source.length - size; start += 1) {
+      const candidate = source.slice(start, start + size);
+      const shared = tokenOverlap(expected, candidate);
+      const evidenceCoverage = shared / expected.length;
+      const similarity = (2 * shared) / (expected.length + candidate.length);
+      if (evidenceCoverage >= 0.75 && similarity >= EVIDENCE_SIMILARITY_THRESHOLD) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 function verifyEvidenceItems(items, contextData) {
-  const profileText = normaliseEvidence(JSON.stringify(contextData.profile));
-  const cvText = normaliseEvidence(contextData.master_cv.text);
+  const profileText = JSON.stringify(contextData.profile);
+  const cvText = contextData.master_cv.text;
   const verified = [];
   const rejected = [];
+  const verifiedCategories = new Set();
 
   for (const item of Array.isArray(items) ? items : []) {
     const claim = String(item?.claim || "").trim();
-    const evidence = normaliseEvidence(item?.evidence);
+    const evidence = String(item?.evidence || "").trim();
     const source = item?.source === "Master CV" ? "Master CV" : "Candidate Profile";
+    const category = SCORING_CATEGORIES.includes(item?.category) ? item.category : "";
     const sourceText = source === "Master CV" ? cvText : profileText;
-    if (claim && evidence.length >= 4 && sourceText.includes(evidence)) {
-      verified.push(`${claim} — Evidence: “${String(item.evidence).trim()}” (${source})`);
+    if (claim && evidence.length >= 4 && hasGroundedEvidence(evidence, sourceText)) {
+      verified.push(`${claim} — Evidence: “${evidence}” (${source})`);
+      if (category) verifiedCategories.add(category);
     } else if (claim) {
       rejected.push(claim);
     }
   }
 
-  return { verified, rejected };
+  return { verified, rejected, verifiedCategories };
 }
 
 function matchEvidenceSchema() {
@@ -135,8 +184,9 @@ function matchEvidenceSchema() {
         claim: { type: "string" },
         evidence: { type: "string" },
         source: { type: "string", enum: ["Candidate Profile", "Master CV"] },
+        category: { type: "string", enum: SCORING_CATEGORIES },
       },
-      required: ["claim", "evidence", "source"],
+      required: ["claim", "evidence", "source", "category"],
     },
   };
 }
@@ -155,22 +205,70 @@ function resolveScoringWeights(scoring) {
   );
 }
 
-function normaliseMatchResult(result, contextData) {
+function normaliseBreakdown(result, weights, verifiedCategories) {
+  const assessable = new Set(
+    (Array.isArray(result?.assessable_categories) ? result.assessable_categories : [])
+      .filter((category) => SCORING_CATEGORIES.includes(category))
+  );
+  const rawBreakdown = result?.breakdown && typeof result.breakdown === "object"
+    ? result.breakdown
+    : {};
+  const breakdown = {};
+  let awardedPoints = 0;
+  let assessableWeight = 0;
+
+  for (const category of SCORING_CATEGORIES) {
+    const maximum = Number(weights[category]) || 0;
+    const isAssessable = assessable.has(category);
+    const requested = Number(rawBreakdown[category]);
+    const hasVerifiedEvidence = verifiedCategories.has(category);
+    const score = isAssessable && hasVerifiedEvidence && Number.isFinite(requested)
+      ? Math.min(maximum, Math.max(0, requested))
+      : 0;
+
+    breakdown[category] = {
+      score: Math.round(score * 10) / 10,
+      maximum,
+      status: !isAssessable
+        ? "Not assessed"
+        : hasVerifiedEvidence
+          ? "Verified"
+          : "Needs evidence",
+    };
+    if (isAssessable) assessableWeight += maximum;
+    awardedPoints += score;
+  }
+
+  return {
+    breakdown,
+    totalScore: assessableWeight
+      ? Math.round((awardedPoints / assessableWeight) * 100)
+      : null,
+  };
+}
+
+function normaliseMatchResult(result, contextData, weights) {
   const strong = verifyEvidenceItems(result?.strong_matches, contextData);
   const partial = verifyEvidenceItems(result?.partial_matches, contextData);
   const transferable = verifyEvidenceItems(result?.transferable_matches, contextData);
-  const verifiedCount = strong.verified.length + partial.verified.length + transferable.verified.length;
+  const verifiedCategories = new Set([
+    ...strong.verifiedCategories,
+    ...partial.verifiedCategories,
+    ...transferable.verifiedCategories,
+  ]);
   const rejected = [...strong.rejected, ...partial.rejected, ...transferable.rejected];
-  const positiveCount = verifiedCount + rejected.length;
-  const rawScore = Math.min(100, Math.max(0, Number(result?.total_score) || 0));
-  const evidenceRatio = positiveCount ? verifiedCount / positiveCount : 0;
-  const totalScore = Math.round(rawScore * evidenceRatio);
+  const { breakdown, totalScore } = normaliseBreakdown(result, weights, verifiedCategories);
+  const hasScore = totalScore !== null;
   const questions = Array.isArray(result?.questions) ? result.questions : [];
 
   return {
-    total_score: totalScore,
-    recommendation: recommendationBand(totalScore),
-    confidence: rejected.length ? "Low" : String(result?.confidence || "Medium"),
+    total_score: hasScore ? totalScore : 0,
+    recommendation: hasScore ? recommendationBand(totalScore) : "Do Not Apply",
+    confidence: !hasScore
+      ? "Insufficient evidence"
+      : rejected.length
+        ? "Low"
+        : String(result?.confidence || "Medium"),
     strong_reasons: strong.verified,
     partial_reasons: partial.verified,
     transferable_strengths: transferable.verified,
@@ -184,8 +282,10 @@ function normaliseMatchResult(result, contextData) {
     suggested_cv: String(result?.suggested_cv || contextData.master_cv.name || ""),
     application_priority: String(result?.application_priority || ""),
     suggested_deadline: String(result?.suggested_deadline || ""),
-    recommended_action: String(result?.recommended_action || ""),
-    breakdown: result?.breakdown && typeof result.breakdown === "object" ? result.breakdown : {},
+    recommended_action: !hasScore
+      ? "Review the Candidate Profile and Master CV evidence before making an application decision."
+      : String(result?.recommended_action || ""),
+    breakdown,
   };
 }
 
@@ -245,11 +345,10 @@ export async function analyseJobMatch(job, candidate, cvs, scoring) {
   const weights = resolveScoringWeights(scoring);
   const res = await base44.integrations.Core.InvokeLLM({
     model: "claude_sonnet_4_6",
-    prompt: `You are a specialist Data Governance career matching engine. Evaluate how well the candidate matches the job. Be strictly evidence-based: NEVER claim the candidate has a skill, qualification or experience that is not present in the candidate profile or master CV. For every positive claim, copy a short, exact evidence phrase from the named source. Do not paraphrase the evidence field. If no exact supporting phrase exists, do not make the positive claim. Distinguish genuine Data Governance roles from roles that are primarily data engineering, software engineering, BI development, data science, ML or database administration. Related technical roles should score lower unless governance/quality/controls/stewardship/metadata/regulatory/leadership responsibilities are substantial.\n\nApply these scoring weights (they sum to 100):\n${JSON.stringify(weights)}\n\nCompute a total_score from 0 to 100. The application will independently verify evidence and derive the final recommendation.\n\nApply hard-stop rules where relevant (do not delete the job, just flag in hard_stops and lower the score). Hard stops include:\n${JSON.stringify(DEFAULT_HARD_STOPS)}\n\nFor missing_requirements list what the candidate lacks. For questions list things to investigate. Suggested CV must be the supplied master CV name. Suggested deadline should be the closing date if known else within 7 days. Return JSON per schema.\n\nCANDIDATE:\n${ctx}\n\nJOB:\n${JSON.stringify(job)}`,
+    prompt: `You are a specialist Data Governance career matching engine. Evaluate how well the candidate matches the job. Be strictly evidence-based: NEVER claim the candidate has a skill, qualification or experience that is not present in the candidate profile or master CV. For every positive claim, copy a short evidence phrase from the named source and assign the scoring category it supports. Prefer an exact quotation and do not introduce facts that are absent from the source. If no supporting phrase exists, do not make the positive claim.\n\nDistinguish genuine Data Governance roles from roles that are primarily data engineering, software engineering, BI development, data science, ML or database administration. Related technical roles should score lower unless governance/quality/controls/stewardship/metadata/regulatory/leadership responsibilities are substantial.\n\nApply these scoring weights (they sum to 100):\n${JSON.stringify(weights)}\n\nFor breakdown, return the awarded points for every category, capped at that category's configured weight. A category may receive positive points only when at least one returned positive evidence item supports that category. List a category in assessable_categories only when both the job and candidate context contain enough information to assess it. Do not treat an unknown salary, qualification, location or other missing fact as a mismatch. The application will independently verify the evidence, calculate the final normalised score across assessable categories and derive the recommendation.\n\nApply hard-stop rules where relevant (do not delete the job, just flag in hard_stops and lower the relevant category scores). Hard stops include:\n${JSON.stringify(DEFAULT_HARD_STOPS)}\n\nFor missing_requirements list only requirements the available evidence shows the candidate lacks. Put unknowns in questions instead. Suggested CV must be the supplied master CV name. Suggested deadline should be the closing date if known else within 7 days. Return JSON per schema.\n\nCANDIDATE:\n${ctx}\n\nJOB:\n${JSON.stringify(job)}`,
     response_json_schema: {
       type: "object",
       properties: {
-        total_score: { type: "number" },
         confidence: { type: "string" },
         strong_matches: matchEvidenceSchema(),
         partial_matches: matchEvidenceSchema(),
@@ -262,12 +361,28 @@ export async function analyseJobMatch(job, candidate, cvs, scoring) {
         application_priority: { type: "string" },
         suggested_deadline: { type: "string" },
         recommended_action: { type: "string" },
-        breakdown: { type: "object", additionalProperties: true },
+        assessable_categories: {
+          type: "array",
+          items: { type: "string", enum: SCORING_CATEGORIES },
+        },
+        breakdown: {
+          type: "object",
+          properties: Object.fromEntries(
+            SCORING_CATEGORIES.map((category) => [category, { type: "number" }])
+          ),
+          required: SCORING_CATEGORIES,
+        },
       },
-      required: ["total_score", "strong_matches", "partial_matches", "transferable_matches"],
+      required: [
+        "strong_matches",
+        "partial_matches",
+        "transferable_matches",
+        "assessable_categories",
+        "breakdown",
+      ],
     },
   });
-  return normaliseMatchResult(res, contextData);
+  return normaliseMatchResult(res, contextData, weights);
 }
 
 export async function generateApplicationSection(section, job, candidate, cv, questionText) {
