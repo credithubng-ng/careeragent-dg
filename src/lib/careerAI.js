@@ -161,11 +161,17 @@ function verifyEvidenceItems(items, contextData) {
   for (const item of Array.isArray(items) ? items : []) {
     const claim = String(item?.claim || "").trim();
     const evidence = String(item?.evidence || "").trim();
-    const source = item?.source === "Master CV" ? "Master CV" : "Candidate Profile";
+    const preferredSource = item?.source === "Master CV" ? "Master CV" : "Candidate Profile";
     const category = SCORING_CATEGORIES.includes(item?.category) ? item.category : "";
-    const sourceText = source === "Master CV" ? cvText : profileText;
-    if (claim && evidence.length >= 4 && hasGroundedEvidence(evidence, sourceText)) {
-      verified.push(`${claim} — Evidence: “${evidence}” (${source})`);
+    const sources = preferredSource === "Master CV"
+      ? [["Master CV", cvText], ["Candidate Profile", profileText]]
+      : [["Candidate Profile", profileText], ["Master CV", cvText]];
+    const verifiedSource = sources.find(([, sourceText]) =>
+      hasGroundedEvidence(evidence, sourceText)
+    )?.[0];
+
+    if (claim && evidence.length >= 4 && verifiedSource) {
+      verified.push(`${claim} — Evidence: “${evidence}” (${verifiedSource})`);
       if (category) verifiedCategories.add(category);
     } else if (claim) {
       rejected.push(claim);
@@ -346,8 +352,8 @@ export async function analyseJobMatch(job, candidate, cvs, scoring) {
   const ctx = JSON.stringify(contextData, null, 2);
   const weights = resolveScoringWeights(scoring);
   const res = await base44.integrations.Core.InvokeLLM({
-    model: "claude_sonnet_4_6",
-    prompt: `You are a specialist Data Governance career matching engine. Evaluate how well the candidate matches the job. Be strictly evidence-based: NEVER claim the candidate has a skill, qualification or experience that is not present in the candidate profile or master CV. For every positive claim, copy a short evidence phrase from the named source and assign the scoring category it supports. Prefer an exact quotation and do not introduce facts that are absent from the source. If no supporting phrase exists, do not make the positive claim.\n\nDistinguish genuine Data Governance roles from roles that are primarily data engineering, software engineering, BI development, data science, ML or database administration. Related technical roles should score lower unless governance/quality/controls/stewardship/metadata/regulatory/leadership responsibilities are substantial.\n\nApply these scoring weights (they sum to 100):\n${JSON.stringify(weights)}\n\nFor breakdown, return the awarded points for every category, capped at that category's configured weight. A category may receive positive points only when at least one returned positive evidence item supports that category. List a category in assessable_categories only when both the job and candidate context contain enough information to assess it. Do not treat an unknown salary, qualification, location or other missing fact as a mismatch. The application will independently verify the evidence, calculate the final normalised score across assessable categories and derive the recommendation.\n\nApply hard-stop rules where relevant (do not delete the job, just flag in hard_stops and lower the relevant category scores). Hard stops include:\n${JSON.stringify(DEFAULT_HARD_STOPS)}\n\nFor missing_requirements list only requirements the available evidence shows the candidate lacks. Put unknowns in questions instead. Suggested CV must be the supplied master CV name. Suggested deadline should be the closing date if known else within 7 days. Return JSON per schema.\n\nCANDIDATE:\n${ctx}\n\nJOB:\n${JSON.stringify(job)}`,
+    model: "gpt_5",
+    prompt: `You are a specialist Data Governance career matching engine. Evaluate how well the candidate matches the job. Be strictly evidence-based: NEVER claim the candidate has a skill, qualification or experience that is not present in the candidate profile or master CV. For every positive claim, copy a short evidence phrase from the named source and assign the scoring category it supports. Prefer an exact quotation and do not introduce facts that are absent from the source. If no supporting phrase exists, do not make the positive claim.\n\nDistinguish genuine Data Governance roles from roles that are primarily data engineering, software engineering, BI development, data science, ML or database administration. Related technical roles should score lower unless governance/quality/controls/stewardship/metadata/regulatory/leadership responsibilities are substantial.\n\nApply these scoring weights (they sum to 100):\n${JSON.stringify(weights)}\n\nFor breakdown, return the awarded points for every category, capped at that category's configured weight. A category may receive positive points only when at least one returned positive evidence item supports that category. List every category that can be compared from the supplied job and candidate information in assessable_categories. A job description plus a populated Candidate Profile or Master CV must produce at least one assessable category; do not return an empty assessment merely because some fields are unknown. In particular, assess experience, essential skills, seniority/leadership and responsibilities whenever the supplied texts discuss them. Do not treat an unknown salary, qualification, location or other missing fact as a mismatch. The application will independently verify the evidence, calculate the final normalised score across assessable categories and derive the recommendation.\n\nApply hard-stop rules where relevant (do not delete the job, just flag in hard_stops and lower the relevant category scores). Hard stops include:\n${JSON.stringify(DEFAULT_HARD_STOPS)}\n\nFor missing_requirements list only requirements the available evidence shows the candidate lacks. Put unknowns in questions instead. Suggested CV must be the supplied master CV name. Suggested deadline should be the closing date if known else within 7 days. Return JSON per schema.\n\nCANDIDATE:\n${ctx}\n\nJOB:\n${JSON.stringify(job)}`,
     response_json_schema: {
       type: "object",
       properties: {
@@ -366,6 +372,7 @@ export async function analyseJobMatch(job, candidate, cvs, scoring) {
         assessable_categories: {
           type: "array",
           items: { type: "string", enum: SCORING_CATEGORIES },
+          minItems: 1,
         },
         breakdown: {
           type: "object",
@@ -384,6 +391,16 @@ export async function analyseJobMatch(job, candidate, cvs, scoring) {
       ],
     },
   });
+
+  if (
+    !res ||
+    typeof res !== "object" ||
+    !Array.isArray(res.assessable_categories) ||
+    res.assessable_categories.length === 0
+  ) {
+    throw new Error("The AI returned an incomplete match assessment. Please run the analysis again.");
+  }
+
   return normaliseMatchResult(res, contextData, weights);
 }
 
