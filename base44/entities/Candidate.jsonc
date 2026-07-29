@@ -63,13 +63,35 @@
     "current_salary": {
       "type": "number"
     },
+    "salary_currency": {
+      "type": "string",
+      "enum": [
+        "GBP",
+        "EUR",
+        "USD",
+        "NGN",
+        "CAD",
+        "AUD",
+        "CHF"
+      ],
+      "default": "GBP"
+    },
     "notice_period": {
       "type": "string"
+    },
+    "notice_period_unit": {
+      "type": "string",
+      "enum": [
+        "Days",
+        "Weeks",
+        "Months"
+      ]
     },
     "current_employment_status": {
       "type": "string",
       "enum": [
         "Employed",
+        "Self-employed",
         "Noticed",
         "Contract Ending",
         "Available Immediately",

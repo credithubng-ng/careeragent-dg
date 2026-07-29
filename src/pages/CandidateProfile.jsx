@@ -8,6 +8,7 @@ import { createOwnedRecord } from "@/lib/ownedEntities";
 
 const SKILL_CATEGORIES = ["Data Governance", "Data Quality", "Data Strategy", "Data Management", "Metadata", "Data Lineage", "Data Stewardship", "Master Data Management", "Regulatory Compliance", "Risk and Controls", "Privacy", "Technology Platforms", "Leadership", "Stakeholder Management", "Programme Management", "Sector Knowledge"];
 const RIGHT_TO_WORK = ["UK Citizen", "UK ILR/Settled", "UK Visa Sponsorship Required", "EU Right to Work", "Other"];
+const CURRENCIES = ["GBP", "EUR", "USD", "NGN", "CAD", "AUD", "CHF"];
 
 export default function CandidateProfile() {
   const { data: candidates, loading, refetch } = useCollection("Candidate", () => base44.entities.Candidate.list());
@@ -48,16 +49,15 @@ export default function CandidateProfile() {
         preferred_locations: [],
         preferred_industries,
         excluded_industries: [],
+        salary_currency: "GBP",
       });
     }
-    if (candidates.length) setForm(candidates[0]);
+    if (candidates.length) setForm({ salary_currency: "GBP", ...candidates[0] });
     else initBlank();
     return () => { cancelled = true; };
   }, [candidates, cvs]);
 
   function set(field, value) { setForm({ ...form, [field]: value }); }
-  function setArr(field, value) { setForm({ ...form, [field]: value.split("\n").filter(Boolean) }); }
-
   function arrayItem(field, item) { setForm({ ...form, [field]: [...(form[field] || []), item] }); }
   function removeArrayItem(field, idx) { setForm({ ...form, [field]: form[field].filter((_, i) => i !== idx) }); }
   function updateArrayItem(field, idx, itemField, value) {
@@ -73,6 +73,14 @@ export default function CandidateProfile() {
     }
     if (form.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
       toast.error("Enter a valid email address");
+      return;
+    }
+    if (form.notice_period && (!Number.isFinite(Number(form.notice_period)) || Number(form.notice_period) < 0)) {
+      toast.error("Notice period must be zero or greater");
+      return;
+    }
+    if (form.notice_period && !form.notice_period_unit) {
+      toast.error("Select whether the notice period is in days, weeks or months");
       return;
     }
     setSaving(true);
@@ -109,33 +117,35 @@ export default function CandidateProfile() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Input label="Current job title" value={form.current_job_title || ""} onChange={(v) => set("current_job_title", v)} />
             <Input label="Current employer" value={form.current_employer || ""} onChange={(v) => set("current_employer", v)} />
-            <Input label="Years total experience" type="number" value={form.years_total_experience ?? ""} onChange={(v) => set("years_total_experience", Number(v))} />
-            <Input label="Years leadership experience" type="number" value={form.years_leadership ?? ""} onChange={(v) => set("years_leadership", Number(v))} />
-            <Input label="Years Data Governance experience" type="number" value={form.years_data_governance ?? ""} onChange={(v) => set("years_data_governance", Number(v))} />
+            <Input label="Total experience (years)" type="number" min="0" value={form.years_total_experience ?? ""} onChange={(v) => set("years_total_experience", v === "" ? "" : Number(v))} />
+            <Input label="Leadership experience (years)" type="number" min="0" value={form.years_leadership ?? ""} onChange={(v) => set("years_leadership", v === "" ? "" : Number(v))} />
+            <Input label="Data Governance experience (years)" type="number" min="0" value={form.years_data_governance ?? ""} onChange={(v) => set("years_data_governance", v === "" ? "" : Number(v))} />
             <Input label="Current industry" value={form.current_industry || ""} onChange={(v) => set("current_industry", v)} />
-            <Input label="Current salary" type="number" value={form.current_salary ?? ""} onChange={(v) => set("current_salary", Number(v))} />
-            <Input label="Notice period" value={form.notice_period || ""} onChange={(v) => set("notice_period", v)} />
-            <Select label="Employment status" value={form.current_employment_status || ""} options={["", "Employed", "Noticed", "Contract Ending", "Available Immediately", "Unemployed"]} onChange={(v) => set("current_employment_status", v)} />
+            <Select label="Salary currency" value={form.salary_currency || "GBP"} options={CURRENCIES} onChange={(v) => set("salary_currency", v)} />
+            <Input label={`Current annual salary (${form.salary_currency || "GBP"})`} type="number" min="0" value={form.current_salary ?? ""} onChange={(v) => set("current_salary", v === "" ? "" : Number(v))} />
+            <Input label="Notice period length" type="number" min="0" value={form.notice_period || ""} onChange={(v) => set("notice_period", v)} />
+            <Select label="Notice period unit" value={form.notice_period_unit || ""} options={["", "Days", "Weeks", "Months"]} onChange={(v) => set("notice_period_unit", v)} />
+            <Select label="Employment status" value={form.current_employment_status || ""} options={["", "Employed", "Self-employed", "Noticed", "Contract Ending", "Available Immediately", "Unemployed"]} onChange={(v) => set("current_employment_status", v)} />
           </div>
         </SectionCard>
 
         <SectionCard title="Target Role Preferences">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <TextArea label="Preferred job titles (one per line)" value={(form.preferred_job_titles || []).join("\n")} onChange={(v) => setArr("preferred_job_titles", v)} />
-            <TextArea label="Acceptable alternative titles (one per line)" value={(form.alternative_job_titles || []).join("\n")} onChange={(v) => setArr("alternative_job_titles", v)} />
-            <TextArea label="Excluded job titles (one per line)" value={(form.excluded_job_titles || []).join("\n")} onChange={(v) => setArr("excluded_job_titles", v)} />
-            <Input label="Minimum salary" type="number" value={form.min_salary ?? ""} onChange={(v) => set("min_salary", Number(v))} />
-            <Input label="Preferred salary" type="number" value={form.preferred_salary ?? ""} onChange={(v) => set("preferred_salary", Number(v))} />
+            <ListInput label="Preferred job titles" placeholder="Add a job title" value={form.preferred_job_titles || []} onChange={(value) => set("preferred_job_titles", value)} />
+            <ListInput label="Acceptable alternative titles" placeholder="Add an alternative title" value={form.alternative_job_titles || []} onChange={(value) => set("alternative_job_titles", value)} />
+            <ListInput label="Excluded job titles" placeholder="Add a title to exclude" value={form.excluded_job_titles || []} onChange={(value) => set("excluded_job_titles", value)} />
+            <Input label={`Minimum annual salary (${form.salary_currency || "GBP"})`} type="number" min="0" value={form.min_salary ?? ""} onChange={(v) => set("min_salary", v === "" ? "" : Number(v))} />
+            <Input label={`Preferred annual salary (${form.salary_currency || "GBP"})`} type="number" min="0" value={form.preferred_salary ?? ""} onChange={(v) => set("preferred_salary", v === "" ? "" : Number(v))} />
             <Select label="Employment type" value={form.employment_type_preference || ""} options={["", "Permanent", "Contract", "Interim", "Open to All"]} onChange={(v) => set("employment_type_preference", v)} />
             <Select label="Working pattern" value={form.working_pattern_preference || ""} options={["", "Full-time", "Part-time", "Flexible"]} onChange={(v) => set("working_pattern_preference", v)} />
-            <TextArea label="Preferred locations (one per line)" value={(form.preferred_locations || []).join("\n")} onChange={(v) => setArr("preferred_locations", v)} />
-            <Input label="Max commuting distance (miles)" type="number" value={form.max_commute_distance ?? ""} onChange={(v) => set("max_commute_distance", Number(v))} />
+            <ListInput label="Preferred locations" placeholder="Add a location" value={form.preferred_locations || []} onChange={(value) => set("preferred_locations", value)} />
+            <Input label="Maximum commuting distance (miles)" type="number" min="0" value={form.max_commute_distance ?? ""} onChange={(v) => set("max_commute_distance", v === "" ? "" : Number(v))} />
             <Select label="Work arrangement" value={form.work_arrangement_preference || ""} options={["", "Remote", "Hybrid", "Office", "Open"]} onChange={(v) => set("work_arrangement_preference", v)} />
             <Select label="Region preference" value={form.region_preference || ""} options={["", "UK Only", "Europe", "Global Remote"]} onChange={(v) => set("region_preference", v)} />
             <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.willing_to_travel || false} onChange={(e) => set("willing_to_travel", e.target.checked)} /> Willing to travel</label>
             <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={form.willing_to_relocate || false} onChange={(e) => set("willing_to_relocate", e.target.checked)} /> Willing to relocate</label>
-            <TextArea label="Preferred industries (one per line)" value={(form.preferred_industries || []).join("\n")} onChange={(v) => setArr("preferred_industries", v)} />
-            <TextArea label="Excluded industries (one per line)" value={(form.excluded_industries || []).join("\n")} onChange={(v) => setArr("excluded_industries", v)} />
+            <ListInput label="Preferred industries" placeholder="Add an industry" value={form.preferred_industries || []} onChange={(value) => set("preferred_industries", value)} />
+            <ListInput label="Excluded industries" placeholder="Add an industry to exclude" value={form.excluded_industries || []} onChange={(value) => set("excluded_industries", value)} />
             <TextArea label="Deal breakers" value={form.deal_breakers || ""} onChange={(v) => set("deal_breakers", v)} />
           </div>
         </SectionCard>
@@ -161,7 +171,7 @@ export default function CandidateProfile() {
                   <input placeholder="Skill name" value={s.name} onChange={(e) => { const arr = [...form.skills]; arr[i] = { ...s, name: e.target.value }; set("skills", arr); }} className="md:col-span-2 rounded-lg border border-input bg-card px-3 py-2 text-sm" />
                   <select value={s.category} onChange={(e) => { const arr = [...form.skills]; arr[i] = { ...s, category: e.target.value }; set("skills", arr); }} className="rounded-lg border border-input bg-card px-2 py-2 text-sm">{SKILL_CATEGORIES.map((c) => <option key={c}>{c}</option>)}</select>
                   <select value={s.proficiency ?? ""} onChange={(e) => { const arr = [...form.skills]; arr[i] = { ...s, proficiency: e.target.value ? Number(e.target.value) : undefined }; set("skills", arr); }} className="rounded-lg border border-input bg-card px-2 py-2 text-sm"><option value="">Not assessed</option>{[1, 2, 3, 4, 5].map((n) => <option key={n} value={n}>{n}/5</option>)}</select>
-                  <input type="number" placeholder="Years" value={s.years ?? ""} onChange={(e) => { const arr = [...form.skills]; arr[i] = { ...s, years: Number(e.target.value) }; set("skills", arr); }} className="rounded-lg border border-input bg-card px-3 py-2 text-sm" />
+                  <div><label className="mb-1 block text-xs text-muted-foreground">Years used</label><input type="number" min="0" placeholder="Years" value={s.years ?? ""} onChange={(e) => { const arr = [...form.skills]; arr[i] = { ...s, years: e.target.value === "" ? undefined : Number(e.target.value) }; set("skills", arr); }} className="w-full rounded-lg border border-input bg-card px-3 py-2 text-sm" /></div>
                   <label className="flex items-center gap-1 text-xs"><input type="checkbox" checked={s.essential || false} onChange={(e) => { const arr = [...form.skills]; arr[i] = { ...s, essential: e.target.checked }; set("skills", arr); }} /> Essential</label>
                   <button onClick={() => removeArrayItem("skills", i)} className="text-rose-500"><Trash2 className="h-4 w-4" /></button>
                 </div>
@@ -216,12 +226,56 @@ export default function CandidateProfile() {
   );
 }
 
-function Input({ label, value, onChange, type = "text" }) {
-  return <div><label className="block text-sm font-medium text-foreground mb-1">{label}</label><input type={type} value={value} onChange={(e) => onChange(e.target.value)} className="w-full rounded-lg border border-input bg-card px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" /></div>;
+function Input({ label, value, onChange, type = "text", min }) {
+  return <div><label className="block text-sm font-medium text-foreground mb-1">{label}</label><input type={type} min={min} value={value} onChange={(e) => onChange(e.target.value)} className="w-full rounded-lg border border-input bg-card px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" /></div>;
 }
 function TextArea({ label, value, onChange }) {
   return <div><label className="block text-sm font-medium text-foreground mb-1">{label}</label><textarea value={value} onChange={(e) => onChange(e.target.value)} className="w-full min-h-[80px] rounded-lg border border-input bg-card p-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring" /></div>;
 }
 function Select({ label, value, options, onChange }) {
   return <div><label className="block text-sm font-medium text-foreground mb-1">{label}</label><select value={value} onChange={(e) => onChange(e.target.value)} className="w-full rounded-lg border border-input bg-card px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring">{options.map((o) => <option key={o} value={o}>{o || "—"}</option>)}</select></div>;
+}
+
+function ListInput({ label, placeholder, value, onChange }) {
+  const [draft, setDraft] = useState("");
+
+  function add() {
+    const item = draft.trim();
+    if (!item) return;
+    const exists = value.some((current) => current.trim().toLowerCase() === item.toLowerCase());
+    if (!exists) onChange([...value, item]);
+    setDraft("");
+  }
+
+  return (
+    <div>
+      <label className="block text-sm font-medium text-foreground mb-1">{label}</label>
+      <div className="flex gap-2">
+        <input
+          value={draft}
+          placeholder={placeholder}
+          onChange={(event) => setDraft(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === ",") {
+              event.preventDefault();
+              add();
+            }
+          }}
+          className="min-w-0 flex-1 rounded-lg border border-input bg-card px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+        />
+        <button type="button" onClick={add} disabled={!draft.trim()} className="rounded-lg border border-border px-3 py-2 text-sm font-medium disabled:opacity-40">Add</button>
+      </div>
+      {value.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-2">
+          {value.map((item) => (
+            <span key={item} className="inline-flex items-center gap-1 rounded-full bg-muted px-3 py-1 text-sm text-foreground">
+              {item}
+              <button type="button" aria-label={`Remove ${item}`} onClick={() => onChange(value.filter((current) => current !== item))} className="text-muted-foreground hover:text-rose-600">×</button>
+            </span>
+          ))}
+        </div>
+      )}
+      <p className="mt-1 text-xs text-muted-foreground">Press Enter or comma to add an item.</p>
+    </div>
+  );
 }

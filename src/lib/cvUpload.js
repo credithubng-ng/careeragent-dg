@@ -31,10 +31,15 @@ const CANDIDATE_PROFILE_SCHEMA = {
         years_data_governance: { type: "number" },
         current_industry: { type: "string" },
         current_salary: { type: "number" },
+        salary_currency: {
+          type: "string",
+          enum: ["GBP", "EUR", "USD", "NGN", "CAD", "AUD", "CHF"],
+        },
         notice_period: { type: "string" },
+        notice_period_unit: { type: "string", enum: ["Days", "Weeks", "Months"] },
         current_employment_status: {
           type: "string",
-          enum: ["Employed", "Noticed", "Contract Ending", "Available Immediately", "Unemployed"],
+          enum: ["Employed", "Self-employed", "Noticed", "Contract Ending", "Available Immediately", "Unemployed"],
         },
         preferred_job_titles: { type: "array", items: { type: "string" } },
         alternative_job_titles: { type: "array", items: { type: "string" } },

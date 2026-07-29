@@ -58,6 +58,7 @@ export function buildCandidateContext(candidate, cvs) {
         years_data_governance: candidate?.years_data_governance,
         current_industry: candidate?.current_industry,
         right_to_work: candidate?.right_to_work,
+        salary_currency: candidate?.salary_currency,
         min_salary: candidate?.min_salary,
         preferred_salary: candidate?.preferred_salary,
         employment_type_preference: candidate?.employment_type_preference,
