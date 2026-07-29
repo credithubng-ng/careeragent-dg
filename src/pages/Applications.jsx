@@ -6,17 +6,41 @@ import { ukDate } from "@/lib/format";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { Plus, X } from "lucide-react";
 import { toast } from "react-hot-toast";
-import { cn } from "@/lib/utils";
 import { createOwnedRecord } from "@/lib/ownedEntities";
 
 const STAGES = ["Identified", "Reviewing", "Preparing", "Ready to Apply", "Applied", "Recruiter Contact", "First Interview", "Further Interview", "Assessment", "Reference Check", "Offer", "Rejected", "Withdrawn"];
 
+async function listOwnedRecords(entityName, query = {}, sort, limit) {
+  const user = await base44.auth.me();
+  const ownerEmail =
+    typeof user?.email === "string" ? user.email.trim().toLowerCase() : "";
+  if (!ownerEmail) throw new Error("A signed-in user with an email address is required.");
+  return base44.entities[entityName].filter(
+    { ...query, owner_email: ownerEmail },
+    sort,
+    limit
+  );
+}
+
 export default function Applications() {
-  const { data: apps, loading, refetch } = useCollection("Application", () => base44.entities.Application.list("-created_date", 300));
-  const { data: jobs } = useCollection("Job", () => base44.entities.Job.list("-created_date", 300));
-  const { data: candidates } = useCollection("Candidate", () => base44.entities.Candidate.list());
-  const { data: cvs } = useCollection("CV", () => base44.entities.CV.list("-created_date", 50));
+  const { data: apps, loading, refetch } = useCollection(
+    "Application",
+    () => listOwnedRecords("Application", {}, "-created_date", 300)
+  );
+  const { data: jobs } = useCollection(
+    "Job",
+    () => listOwnedRecords("Job", {}, "-created_date", 300)
+  );
+  const { data: candidates } = useCollection(
+    "Candidate",
+    () => listOwnedRecords("Candidate")
+  );
+  const { data: cvs } = useCollection(
+    "CV",
+    () => listOwnedRecords("CV", {}, "-created_date", 50)
+  );
   const [adding, setAdding] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [newApp, setNewApp] = useState({ job_id: "", stage: "Identified" });
 
   const byStage = useMemo(() => {
@@ -32,8 +56,15 @@ export default function Applications() {
     if (!app || app.stage === res.destination.droppableId) return;
     try {
       await base44.entities.Application.update(app.id, { stage: res.destination.droppableId });
-      if (res.destination.droppableId === "Applied" && !app.date_applied) {
-        await base44.entities.Application.update(app.id, { date_applied: new Date().toISOString().slice(0, 10) });
+      if (res.destination.droppableId === "Applied") {
+        if (!app.date_applied) {
+          await base44.entities.Application.update(app.id, { date_applied: new Date().toISOString().slice(0, 10) });
+        }
+        try {
+          await base44.entities.Job.update(app.job_id, { job_status: "Applied" });
+        } catch {
+          toast.error("Application moved to Applied, but the Job status could not be updated.");
+        }
       }
       refetch();
     } catch { toast.error("Failed to move application"); }
@@ -42,21 +73,43 @@ export default function Applications() {
   async function addApp() {
     const job = jobs.find((j) => j.id === newApp.job_id);
     if (!job) { toast.error("Select a job"); return; }
+    if (saving) return;
+    if (apps.some((application) => application.job_id === job.id)) {
+      toast.error("An application already exists for this job.");
+      return;
+    }
     const candidate = candidates[0];
-    const masterCv = cvs.find((c) => c.is_master) || cvs[0];
-    await createOwnedRecord("Application", {
-      candidate_id: candidate?.id,
-      job_id: job.id,
-      job_title: job.job_title,
-      employer: job.employer,
-      contact_person: job.contact_person || "",
-      cv_id: masterCv?.id || "",
-      cv_name: masterCv?.cv_name || "",
-      stage: newApp.stage,
-    });
-    setAdding(false); setNewApp({ job_id: "", stage: "Identified" });
-    refetch();
-    toast.success("Application added");
+    if (!candidate) { toast.error("Create a Candidate Profile first."); return; }
+    const masterCv = cvs.find(
+      (cv) => cv.is_master && cv.processing_status === "Ready" && cv.extracted_cv_text?.trim()
+    );
+    if (!masterCv) { toast.error("Upload and process a Master CV first."); return; }
+    setSaving(true);
+    try {
+      const existing = await listOwnedRecords("Application", { job_id: job.id }, "-created_date", 1);
+      if (existing[0]) {
+        toast.error("An application already exists for this job.");
+        return;
+      }
+      await createOwnedRecord("Application", {
+        candidate_id: candidate.id,
+        job_id: job.id,
+        job_title: job.job_title,
+        employer: job.employer,
+        contact_person: job.contact_person || "",
+        cv_id: masterCv.id,
+        cv_name: masterCv.cv_name,
+        stage: newApp.stage,
+        application_document_ids: [],
+      });
+      setAdding(false); setNewApp({ job_id: "", stage: "Identified" });
+      refetch();
+      toast.success("Application added");
+    } catch (error) {
+      toast.error(error?.message || "Unable to add the application.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   if (loading) return <Loading />;
@@ -82,7 +135,7 @@ export default function Applications() {
             <select value={newApp.stage} onChange={(e) => setNewApp({ ...newApp, stage: e.target.value })} className="rounded-lg border border-input bg-card px-3 py-2 text-sm">
               {STAGES.map((s) => <option key={s} value={s}>{s}</option>)}
             </select>
-            <button onClick={addApp} className="rounded-lg bg-primary text-primary-foreground px-4 py-2 text-sm font-medium">Add</button>
+            <button onClick={addApp} disabled={saving} className="rounded-lg bg-primary text-primary-foreground px-4 py-2 text-sm font-medium disabled:opacity-50">{saving ? "Adding…" : "Add"}</button>
             <button onClick={() => setAdding(false)} className="rounded-lg border border-border px-3 py-2"><X className="h-4 w-4" /></button>
           </div>
         </SectionCard>

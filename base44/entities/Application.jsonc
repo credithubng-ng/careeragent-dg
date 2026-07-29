@@ -36,6 +36,12 @@
     "supporting_statement_id": {
       "type": "string"
     },
+    "application_document_ids": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
     "contact_person": {
       "type": "string"
     },
