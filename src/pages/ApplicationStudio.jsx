@@ -515,7 +515,7 @@ export default function ApplicationStudio() {
                   <p className="mt-1 text-[11px] text-muted-foreground">{wordCount(doc.content)} words · {String(doc.content || "").length} characters</p>
                   <div className="flex flex-wrap justify-end gap-2 mt-2">
                     <button onClick={() => copyText(doc.content, doc.title)} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted"><Copy className="h-3.5 w-3.5" /> Copy</button>
-                    {["Cover Letter", "Supporting Statement"].includes(doc.document_type) && <button onClick={() => downloadWord(doc)} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted"><Download className="h-3.5 w-3.5" /> Word</button>}
+                    <button onClick={() => downloadWord(doc)} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted"><Download className="h-3.5 w-3.5" /> Word</button>
                     <button onClick={() => generate(s.type)} disabled={Boolean(generating)} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted disabled:opacity-50">{generating === s.type ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />} Regenerate</button>
                     <button onClick={() => approve(doc.id, doc.approval_status)} className={cn("inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium", doc.approval_status === "Approved" ? "bg-emerald-600 text-white" : "bg-primary text-primary-foreground")}><Check className="h-3.5 w-3.5" /> {doc.approval_status === "Approved" ? "Approved" : "Approve"}</button>
                   </div>
@@ -549,6 +549,7 @@ export default function ApplicationStudio() {
                 <p className="mt-1 text-[11px] text-muted-foreground">{wordCount(d.content)} words · {String(d.content || "").length} characters</p>
                 <div className="flex justify-end gap-2 mt-2">
                   <button onClick={() => copyText(d.content, "Application answer")} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted"><Copy className="h-3.5 w-3.5" /> Copy</button>
+<button onClick={() => downloadWord(d)} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted"><Download className="h-3.5 w-3.5" /> Word</button>
                   <button onClick={() => approve(d.id, d.approval_status)} className={cn("inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium", d.approval_status === "Approved" ? "bg-emerald-600 text-white" : "bg-primary text-primary-foreground")}><Check className="h-3.5 w-3.5" /> {d.approval_status === "Approved" ? "Approved" : "Approve"}</button>
                 </div>
               </div>
