@@ -5,7 +5,7 @@ import { useCollection } from "@/lib/entityHooks";
 import { PageHeader, SectionCard, Loading, EmptyState, Notice } from "@/components/ui-kit";
 import { generateApplicationSection } from "@/lib/careerAI";
 import { todayISO, ukDateTime } from "@/lib/format";
-import { Sparkles, Check, Loader2, Wand2, Send } from "lucide-react";
+import { Sparkles, Check, Loader2, Wand2, Send, Copy, Download, ExternalLink } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { cn } from "@/lib/utils";
 import { createOwnedRecord } from "@/lib/ownedEntities";
@@ -19,6 +19,35 @@ const SECTIONS = [
 ];
 
 const PREPARATION_STAGES = ["Identified", "Reviewing", "Preparing"];
+
+function wordCount(value) {
+  return String(value || "").trim().split(/\s+/).filter(Boolean).length;
+}
+
+function safeExternalUrl(value) {
+  try {
+    const url = new URL(value);
+    return ["http:", "https:"].includes(url.protocol) ? url.href : "";
+  } catch {
+    return "";
+  }
+}
+
+function safeFileName(value) {
+  return String(value || "document")
+    .replace(/[^a-z0-9 _-]/gi, "")
+    .trim()
+    .replace(/\s+/g, "-")
+    .slice(0, 80) || "document";
+}
+
+function escapeHtml(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
 
 async function listOwnedRecords(entityName, query = {}, sort, limit) {
   const user = await base44.auth.me();
@@ -42,6 +71,14 @@ export default function ApplicationStudio() {
   const [loadError, setLoadError] = useState("");
   const [question, setQuestion] = useState("");
   const [generating, setGenerating] = useState(null);
+  const [showSubmission, setShowSubmission] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [submission, setSubmission] = useState({
+    application_method: "Employer website",
+    date_applied: todayISO(),
+    follow_up_date: "",
+    notes: "",
+  });
   const { data: candidates, loading: candidatesLoading } = useCollection(
     "Candidate",
     () => listOwnedRecords("Candidate")
@@ -192,6 +229,40 @@ export default function ApplicationStudio() {
     }
   }
 
+  async function copyText(content, label) {
+    try {
+      await navigator.clipboard.writeText(content);
+      toast.success(`${label} copied`);
+    } catch {
+      toast.error("Unable to copy automatically. Select the text and copy it manually.");
+    }
+  }
+
+  function downloadWord(document) {
+    const html = `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(document.title)}</title></head><body style="font-family:Arial,sans-serif;line-height:1.5;margin:40px"><h1>${escapeHtml(document.title)}</h1><p><strong>${escapeHtml(job.job_title)} — ${escapeHtml(job.employer)}</strong></p><div style="white-space:pre-wrap">${escapeHtml(document.content)}</div></body></html>`;
+    const blob = new Blob([html], { type: "application/msword;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = window.document.createElement("a");
+    link.href = url;
+    link.download = `${safeFileName(job.employer)}-${safeFileName(document.document_type)}.doc`;
+    window.document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  async function copyApprovedPack() {
+    const approved = docs.filter((document) => document.approval_status === "Approved");
+    if (approved.length === 0) {
+      toast.error("Approve at least one document first.");
+      return;
+    }
+    const content = approved
+      .map((document) => `${document.title}\n\n${document.content}`)
+      .join("\n\n----------------------------------------\n\n");
+    await copyText(content, "Approved application pack");
+  }
+
   async function approve(id, current) {
     const status = current === "Approved" ? "Not Approved" : "Approved";
     const document = docs.find((item) => item.id === id);
@@ -275,15 +346,35 @@ export default function ApplicationStudio() {
       toast.error("Mark the application Ready to Apply first.");
       return;
     }
+    setShowSubmission(true);
+  }
+
+  async function confirmApplied() {
+    if (!application || application.stage !== "Ready to Apply") {
+      toast.error("Mark the application Ready to Apply first.");
+      return;
+    }
+    if (!submission.application_method.trim() || !submission.date_applied) {
+      toast.error("Enter the application method and application date.");
+      return;
+    }
+    if (submission.date_applied > todayISO()) {
+      toast.error("The application date cannot be in the future.");
+      return;
+    }
+    setSubmitting(true);
     try {
-      const appliedDate = todayISO();
       const payload = {
         stage: "Applied",
-        date_applied: appliedDate,
+        application_method: submission.application_method.trim(),
+        date_applied: submission.date_applied,
+        follow_up_date: submission.follow_up_date || "",
+        notes: submission.notes.trim(),
       };
       await base44.entities.Application.update(application.id, payload);
       const updated = { ...application, ...payload };
       setApplication(updated);
+      setShowSubmission(false);
       try {
         await base44.entities.Job.update(job.id, { job_status: "Applied" });
         toast.success("Application marked Applied");
@@ -292,10 +383,13 @@ export default function ApplicationStudio() {
       }
     } catch (error) {
       toast.error(error?.message || "Unable to mark the application as applied.");
+    } finally {
+      setSubmitting(false);
     }
   }
 
   const selectedJob = job || allJobs.find((j) => j.id === jobId);
+  const applicationUrl = safeExternalUrl(selectedJob?.original_job_url);
 
   if (!jobId) {
     return (
@@ -351,6 +445,51 @@ export default function ApplicationStudio() {
           <p className="text-sm text-muted-foreground">
             Approved documents are linked automatically to this tracked application.
           </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button onClick={copyApprovedPack} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm font-medium hover:bg-muted">
+              <Copy className="h-4 w-4" /> Copy Approved Pack
+            </button>
+            {applicationUrl && (
+              <a href={applicationUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-sm font-medium hover:bg-muted">
+                <ExternalLink className="h-4 w-4" /> Open Application Page
+              </a>
+            )}
+          </div>
+        </SectionCard>
+      )}
+      {showSubmission && (
+        <SectionCard title="Confirm Application Submission" description="Record the external submission after you have applied." className="mt-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <label className="text-sm">
+              <span className="block text-xs font-medium text-muted-foreground mb-1">Application method</span>
+              <select value={submission.application_method} onChange={(e) => setSubmission({ ...submission, application_method: e.target.value })} className="w-full rounded-lg border border-input bg-card px-3 py-2">
+                <option>Employer website</option>
+                <option>Email</option>
+                <option>Recruiter</option>
+                <option>LinkedIn</option>
+                <option>Job board</option>
+                <option>Other</option>
+              </select>
+            </label>
+            <label className="text-sm">
+              <span className="block text-xs font-medium text-muted-foreground mb-1">Date applied</span>
+              <input type="date" max={todayISO()} value={submission.date_applied} onChange={(e) => setSubmission({ ...submission, date_applied: e.target.value })} className="w-full rounded-lg border border-input bg-card px-3 py-2" />
+            </label>
+            <label className="text-sm">
+              <span className="block text-xs font-medium text-muted-foreground mb-1">Follow-up date</span>
+              <input type="date" min={submission.date_applied || todayISO()} value={submission.follow_up_date} onChange={(e) => setSubmission({ ...submission, follow_up_date: e.target.value })} className="w-full rounded-lg border border-input bg-card px-3 py-2" />
+            </label>
+            <label className="text-sm md:col-span-2">
+              <span className="block text-xs font-medium text-muted-foreground mb-1">Submission notes</span>
+              <textarea value={submission.notes} onChange={(e) => setSubmission({ ...submission, notes: e.target.value })} className="w-full min-h-[80px] rounded-lg border border-input bg-card p-3" placeholder="Reference number, portal used, recruiter details or next steps…" />
+            </label>
+          </div>
+          <div className="flex justify-end gap-2 mt-3">
+            <button onClick={() => setShowSubmission(false)} disabled={submitting} className="rounded-lg border border-border px-3 py-2 text-sm">Cancel</button>
+            <button onClick={confirmApplied} disabled={submitting} className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 text-white px-3 py-2 text-sm font-medium disabled:opacity-50">
+              {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />} Confirm Applied
+            </button>
+          </div>
         </SectionCard>
       )}
 
@@ -363,8 +502,11 @@ export default function ApplicationStudio() {
               {doc ? (
                 <div>
                   <p className="text-xs text-muted-foreground mb-2">Generated {ukDateTime(doc.generated_at || doc.date_generated)} · {doc.grounding_status || "Legacy draft"}</p>
-                  <textarea defaultValue={doc.content} onBlur={(e) => updateDoc(doc.id, { content: e.target.value, grounding_status: "Candidate Edited" })} className="w-full min-h-[180px] rounded-lg border border-input bg-card p-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
-                  <div className="flex justify-end gap-2 mt-2">
+                  <textarea value={doc.content || ""} onChange={(e) => setDocs((current) => current.map((item) => item.id === doc.id ? { ...item, content: e.target.value, grounding_status: "Candidate Edited", approval_status: "Draft" } : item))} onBlur={(e) => updateDoc(doc.id, { content: e.target.value, grounding_status: "Candidate Edited", approval_status: "Draft" })} className="w-full min-h-[180px] rounded-lg border border-input bg-card p-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+                  <p className="mt-1 text-[11px] text-muted-foreground">{wordCount(doc.content)} words · {String(doc.content || "").length} characters</p>
+                  <div className="flex flex-wrap justify-end gap-2 mt-2">
+                    <button onClick={() => copyText(doc.content, doc.title)} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted"><Copy className="h-3.5 w-3.5" /> Copy</button>
+                    {["Cover Letter", "Supporting Statement"].includes(doc.document_type) && <button onClick={() => downloadWord(doc)} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted"><Download className="h-3.5 w-3.5" /> Word</button>}
                     <button onClick={() => generate(s.type)} disabled={Boolean(generating)} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted disabled:opacity-50">{generating === s.type ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5" />} Regenerate</button>
                     <button onClick={() => approve(doc.id, doc.approval_status)} className={cn("inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium", doc.approval_status === "Approved" ? "bg-emerald-600 text-white" : "bg-primary text-primary-foreground")}><Check className="h-3.5 w-3.5" /> {doc.approval_status === "Approved" ? "Approved" : "Approve"}</button>
                   </div>
@@ -387,8 +529,10 @@ export default function ApplicationStudio() {
               <div key={d.id} className="rounded-lg border border-border p-3">
                 <p className="text-xs font-medium text-foreground mb-1">Q: {d.question_text}</p>
                 <p className="text-[11px] text-muted-foreground mb-2">Generated {ukDateTime(d.generated_at || d.date_generated)} · {d.approval_status} · {d.grounding_status || "Legacy draft"}</p>
-                <textarea defaultValue={d.content} onBlur={(e) => updateDoc(d.id, { content: e.target.value, grounding_status: "Candidate Edited" })} className="w-full min-h-[120px] rounded-lg border border-input bg-card p-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
-                <div className="flex justify-end mt-2">
+                <textarea value={d.content || ""} onChange={(e) => setDocs((current) => current.map((item) => item.id === d.id ? { ...item, content: e.target.value, grounding_status: "Candidate Edited", approval_status: "Draft" } : item))} onBlur={(e) => updateDoc(d.id, { content: e.target.value, grounding_status: "Candidate Edited", approval_status: "Draft" })} className="w-full min-h-[120px] rounded-lg border border-input bg-card p-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+                <p className="mt-1 text-[11px] text-muted-foreground">{wordCount(d.content)} words · {String(d.content || "").length} characters</p>
+                <div className="flex justify-end gap-2 mt-2">
+                  <button onClick={() => copyText(d.content, "Application answer")} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted"><Copy className="h-3.5 w-3.5" /> Copy</button>
                   <button onClick={() => approve(d.id, d.approval_status)} className={cn("inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-medium", d.approval_status === "Approved" ? "bg-emerald-600 text-white" : "bg-primary text-primary-foreground")}><Check className="h-3.5 w-3.5" /> {d.approval_status === "Approved" ? "Approved" : "Approve"}</button>
                 </div>
               </div>
