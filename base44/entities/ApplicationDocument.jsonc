@@ -35,6 +35,27 @@
     "source_cv_id": {
       "type": "string"
     },
+    "source_job_match_id": {
+      "type": "string"
+    },
+    "evidence_quotes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "grounding_status": {
+      "type": "string",
+      "enum": [
+        "Verified",
+        "Candidate Edited",
+        "Unverified"
+      ]
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
     "date_generated": {
       "type": "string"
     },

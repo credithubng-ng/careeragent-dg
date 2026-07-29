@@ -404,18 +404,60 @@ export async function analyseJobMatch(job, candidate, cvs, scoring) {
   return normaliseMatchResult(res, contextData, weights);
 }
 
-export async function generateApplicationSection(section, job, candidate, cv, questionText) {
-  const ctx = JSON.stringify({ candidate_profile: candidate, cv_text: cv?.extracted_cv_text || cv?.professional_summary || "" }, null, 2);
+export async function generateApplicationSection(section, job, candidate, cv, match, questionText) {
+  const candidateData = buildCandidateContextData(candidate, [cv]);
+  const candidateContext = {
+    candidate_profile: candidateData.profile,
+    master_cv_text: candidateData.master_cv.text,
+  };
+  const verifiedMatchEvidence = [
+    ...(match?.strong_reasons || []),
+    ...(match?.partial_reasons || []),
+    ...(match?.transferable_strengths || []),
+  ];
   const sectionPrompts = {
     "Tailored Profile": "a revised professional summary aligned with the job's requirements and the candidate's genuine experience",
     "CV Improvement": "CV improvement recommendations: keywords to include, experience to emphasise, achievements to move higher, skills that need clearer evidence, content less relevant, and suggested section ordering. Do NOT invent skills. Do NOT alter factual dates, job titles, employers or achievements.",
     "Cover Letter": "a professional UK-style cover letter addressed to the hiring manager, drawing only on the candidate's genuine experience and the job requirements",
     "Supporting Statement": "a role-specific supporting statement addressing the essential requirements, evidence-based",
     "Recruiter Message": "a concise LinkedIn or email introduction to a recruiter or hiring manager expressing interest in the role",
+    "Application Question": "a direct, evidence-based answer to the supplied application question",
   };
-  const prompt = `You are a specialist career application writer for a senior Data Governance professional. Generate ${sectionPrompts[section] || section}. Use ONLY information present in the candidate profile and CV. Never invent experience, qualifications, employers, dates or technologies. Write in British English.\n\nCANDIDATE:\n${ctx}\n\nJOB:\n${JSON.stringify(job)}\n${questionText ? `\nAPPLICATION QUESTION TO ANSWER:\n${questionText}\n` : ""}\n\nReturn the content as plain text. Include a heading line.`;
-  const res = await base44.integrations.Core.InvokeLLM({ prompt });
-  return typeof res === "string" ? res : JSON.stringify(res);
+  const prompt = `You are a specialist career application writer for a senior Data Governance professional. Generate ${sectionPrompts[section] || section}. Write in British English.\n\nGROUNDING RULES:\n- Use only candidate facts present in the Candidate Profile or Master CV below.\n- Prioritise the supplied VERIFIED MATCH EVIDENCE when aligning the draft to the job.\n- Never invent or infer experience, qualifications, employers, dates, achievements, metrics, technologies, responsibilities or sector exposure.\n- Do not present a missing requirement as a candidate strength.\n- Return every exact candidate-source phrase used to support a factual claim in evidence_quotes. These quotes are checked by the application before the draft is saved.\n\nCANDIDATE SOURCES:\n${JSON.stringify(candidateContext, null, 2)}\n\nVERIFIED MATCH EVIDENCE:\n${JSON.stringify(verifiedMatchEvidence, null, 2)}\n\nKNOWN GAPS OR QUESTIONS:\n${JSON.stringify({
+    missing_requirements: match?.missing_requirements || [],
+    concerns: match?.concerns || [],
+    questions: match?.questions || [],
+  }, null, 2)}\n\nJOB:\n${JSON.stringify(job)}\n${questionText ? `\nAPPLICATION QUESTION TO ANSWER:\n${questionText}\n` : ""}`;
+  const res = await base44.integrations.Core.InvokeLLM({
+    model: "gpt_5",
+    prompt,
+    response_json_schema: {
+      type: "object",
+      properties: {
+        content: { type: "string", minLength: 1 },
+        evidence_quotes: {
+          type: "array",
+          minItems: 1,
+          items: { type: "string", minLength: 4 },
+        },
+      },
+      required: ["content", "evidence_quotes"],
+    },
+  });
+
+  const content = typeof res?.content === "string" ? res.content.trim() : "";
+  const evidenceQuotes = Array.isArray(res?.evidence_quotes) ? res.evidence_quotes : [];
+  const profileText = JSON.stringify(candidateContext.candidate_profile);
+  const cvText = candidateContext.master_cv_text;
+  const unverifiedEvidence = evidenceQuotes.filter(
+    (quote) => !hasGroundedEvidence(quote, profileText) && !hasGroundedEvidence(quote, cvText)
+  );
+
+  if (!content || evidenceQuotes.length === 0 || unverifiedEvidence.length > 0) {
+    throw new Error("The generated draft contained evidence that could not be verified. Nothing was saved.");
+  }
+
+  return { content, evidenceQuotes };
 }
 
 export async function generateInterviewQuestions(job, candidate) {
