@@ -9,6 +9,7 @@ import { Sparkles, Check, Loader2, Wand2, Send, Copy, Download, ExternalLink } f
 import { toast } from "react-hot-toast";
 import { cn } from "@/lib/utils";
 import { createOwnedRecord } from "@/lib/ownedEntities";
+import DocumentView, { markdownToHtml } from "@/components/DocumentView";
 
 const SECTIONS = [
   { type: "Tailored Profile", label: "Tailored Profile", desc: "Revised professional summary aligned with the role" },
@@ -73,6 +74,7 @@ export default function ApplicationStudio() {
   const [generating, setGenerating] = useState(null);
   const [showSubmission, setShowSubmission] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [editingDocs, setEditingDocs] = useState({});
   const [submission, setSubmission] = useState({
     application_method: "Employer website",
     date_applied: todayISO(),
@@ -239,7 +241,8 @@ export default function ApplicationStudio() {
   }
 
   function downloadWord(document) {
-    const html = `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(document.title)}</title></head><body style="font-family:Arial,sans-serif;line-height:1.5;margin:40px"><h1>${escapeHtml(document.title)}</h1><p><strong>${escapeHtml(job.job_title)} — ${escapeHtml(job.employer)}</strong></p><div style="white-space:pre-wrap">${escapeHtml(document.content)}</div></body></html>`;
+    const bodyHtml = markdownToHtml(document.content);
+    const html = `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(document.title)}</title><style>body{font-family:Calibri,Arial,sans-serif;line-height:1.5;color:#1a1a1a;margin:48px 56px;font-size:11pt}h1{font-size:18pt;font-weight:bold;margin:0 0 6pt}h2{font-size:13pt;font-weight:bold;margin:16pt 0 6pt}h3{font-size:11.5pt;font-weight:bold;margin:12pt 0 4pt}p{margin:0 0 8pt}ul,ol{margin:0 0 8pt 18pt}li{margin:0 0 3pt}strong{font-weight:bold}em{font-style:italic}blockquote{border-left:3pt solid #ccc;margin:0 0 8pt;padding-left:10pt;color:#555;font-style:italic}hr{border:none;border-top:1pt solid #ccc;margin:12pt 0}</style></head><body><h1>${escapeHtml(document.title)}</h1><p><strong>${escapeHtml(job.job_title)} — ${escapeHtml(job.employer)}</strong></p>${bodyHtml}</body></html>`;
     const blob = new Blob([html], { type: "application/msword;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     const link = window.document.createElement("a");
@@ -502,7 +505,13 @@ export default function ApplicationStudio() {
               {doc ? (
                 <div>
                   <p className="text-xs text-muted-foreground mb-2">Generated {ukDateTime(doc.generated_at || doc.date_generated)} · {doc.grounding_status || "Legacy draft"}</p>
-                  <textarea value={doc.content || ""} onChange={(e) => setDocs((current) => current.map((item) => item.id === doc.id ? { ...item, content: e.target.value, grounding_status: "Candidate Edited", approval_status: "Draft" } : item))} onBlur={(e) => updateDoc(doc.id, { content: e.target.value, grounding_status: "Candidate Edited", approval_status: "Draft" })} className="w-full min-h-[180px] rounded-lg border border-input bg-card p-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+                  <DocumentView
+                    content={doc.content || ""}
+                    editing={!!editingDocs[doc.id]}
+                    onEditChange={(editing) => setEditingDocs((prev) => ({ ...prev, [doc.id]: editing }))}
+                    onChange={(value) => setDocs((current) => current.map((item) => item.id === doc.id ? { ...item, content: value, grounding_status: "Candidate Edited", approval_status: "Draft" } : item))}
+                    onBlur={(value) => updateDoc(doc.id, { content: value, grounding_status: "Candidate Edited", approval_status: "Draft" })}
+                  />
                   <p className="mt-1 text-[11px] text-muted-foreground">{wordCount(doc.content)} words · {String(doc.content || "").length} characters</p>
                   <div className="flex flex-wrap justify-end gap-2 mt-2">
                     <button onClick={() => copyText(doc.content, doc.title)} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted"><Copy className="h-3.5 w-3.5" /> Copy</button>
@@ -529,7 +538,14 @@ export default function ApplicationStudio() {
               <div key={d.id} className="rounded-lg border border-border p-3">
                 <p className="text-xs font-medium text-foreground mb-1">Q: {d.question_text}</p>
                 <p className="text-[11px] text-muted-foreground mb-2">Generated {ukDateTime(d.generated_at || d.date_generated)} · {d.approval_status} · {d.grounding_status || "Legacy draft"}</p>
-                <textarea value={d.content || ""} onChange={(e) => setDocs((current) => current.map((item) => item.id === d.id ? { ...item, content: e.target.value, grounding_status: "Candidate Edited", approval_status: "Draft" } : item))} onBlur={(e) => updateDoc(d.id, { content: e.target.value, grounding_status: "Candidate Edited", approval_status: "Draft" })} className="w-full min-h-[120px] rounded-lg border border-input bg-card p-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
+                <DocumentView
+                  content={d.content || ""}
+                  minHeight="120px"
+                  editing={!!editingDocs[d.id]}
+                  onEditChange={(editing) => setEditingDocs((prev) => ({ ...prev, [d.id]: editing }))}
+                  onChange={(value) => setDocs((current) => current.map((item) => item.id === d.id ? { ...item, content: value, grounding_status: "Candidate Edited", approval_status: "Draft" } : item))}
+                  onBlur={(value) => updateDoc(d.id, { content: value, grounding_status: "Candidate Edited", approval_status: "Draft" })}
+                />
                 <p className="mt-1 text-[11px] text-muted-foreground">{wordCount(d.content)} words · {String(d.content || "").length} characters</p>
                 <div className="flex justify-end gap-2 mt-2">
                   <button onClick={() => copyText(d.content, "Application answer")} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted"><Copy className="h-3.5 w-3.5" /> Copy</button>
