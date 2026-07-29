@@ -9,6 +9,27 @@ import { ArrowLeft, Sparkles, Flame, Check, X, HelpCircle, AlertTriangle, Wand2,
 import { toast } from "react-hot-toast";
 import { createOwnedRecord } from "@/lib/ownedEntities";
 
+const MATCH_TIMEOUT_MS = 90_000;
+const JOB_UPDATE_TIMEOUT_MS = 15_000;
+const SCORE_LABELS = {
+  weight_experience: "Relevant experience",
+  weight_essential_skills: "Essential skills",
+  weight_seniority_leadership: "Seniority and leadership",
+  weight_sector: "Sector experience",
+  weight_responsibilities: "Responsibilities",
+  weight_location: "Location and working pattern",
+  weight_salary: "Salary and employment type",
+  weight_qualifications: "Qualifications",
+};
+
+function withTimeout(promise, timeoutMs, message) {
+  let timeoutId;
+  const timeout = new Promise((_, reject) => {
+    timeoutId = window.setTimeout(() => reject(new Error(message)), timeoutMs);
+  });
+  return Promise.race([promise, timeout]).finally(() => window.clearTimeout(timeoutId));
+}
+
 function ListBlock({ title, items, icon: Icon, tone = "default" }) {
   if (!items || items.length === 0) return null;
   const toneClass = tone === "green" ? "text-emerald-600" : tone === "red" ? "text-rose-600" : tone === "amber" ? "text-amber-600" : "text-muted-foreground";
@@ -18,6 +39,32 @@ function ListBlock({ title, items, icon: Icon, tone = "default" }) {
       <ul className="space-y-1.5">
         {items.map((it, i) => <li key={i} className="text-sm text-muted-foreground flex gap-2"><span className="text-border">•</span><span>{it}</span></li>)}
       </ul>
+    </div>
+  );
+}
+
+function ScoreBreakdown({ breakdown }) {
+  const rows = Object.entries(SCORE_LABELS)
+    .map(([key, label]) => ({ key, label, ...breakdown?.[key] }))
+    .filter((row) => row.maximum != null);
+  if (rows.length === 0) return null;
+
+  return (
+    <div>
+      <p className="text-sm font-medium text-foreground mb-2">Verified score breakdown</p>
+      <div className="divide-y divide-border rounded-lg border border-border">
+        {rows.map((row) => (
+          <div key={row.key} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
+            <div>
+              <p className="text-foreground">{row.label}</p>
+              <p className="text-xs text-muted-foreground">{row.status}</p>
+            </div>
+            <span className="font-medium text-foreground">
+              {row.status === "Not assessed" ? "Not assessed" : `${row.score || 0}/${row.maximum}`}
+            </span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -69,13 +116,34 @@ export default function JobDetail() {
     setMatching(true);
     const t = toast.loading("Analysing match…");
     try {
-      const result = await analyseJobMatch(job, candidate, cvs, scoring);
+      const result = await withTimeout(
+        analyseJobMatch(job, candidate, cvs, scoring),
+        MATCH_TIMEOUT_MS,
+        "Match analysis timed out. Please try again."
+      );
       const payload = { candidate_id: candidate.id, job_id: id, ...result };
       const created = await createOwnedRecord("JobMatch", payload);
       setMatch(created);
-      await base44.entities.Job.update(id, { match_score: result.total_score, recommendation: result.recommendation });
-      setJob({ ...job, match_score: result.total_score, recommendation: result.recommendation });
-      toast.success("Match analysis complete", { id: t });
+      setMatching(false);
+      toast.success("Match analysis saved", { id: t });
+
+      try {
+        await withTimeout(
+          base44.entities.Job.update(id, {
+            match_score: result.total_score,
+            recommendation: result.recommendation,
+          }),
+          JOB_UPDATE_TIMEOUT_MS,
+          "Job summary update timed out."
+        );
+        setJob((current) => ({
+          ...current,
+          match_score: result.total_score,
+          recommendation: result.recommendation,
+        }));
+      } catch {
+        toast.error("Analysis saved, but the Jobs list score could not be updated. Refresh and try again.");
+      }
     } catch (e) {
       toast.error(e?.message || "Match analysis failed. Please try again.", { id: t });
     } finally {
@@ -151,8 +219,14 @@ export default function JobDetail() {
               <div className="space-y-5">
                 <div className="flex flex-wrap items-center gap-4">
                   <div>
-                    <div className="text-4xl font-bold text-foreground">{match.total_score}<span className="text-lg text-muted-foreground">/100</span></div>
-                    <StatusBadge status={match.recommendation} />
+                    {match.confidence === "Insufficient evidence" ? (
+                      <div className="text-xl font-bold text-foreground">Score unavailable</div>
+                    ) : (
+                      <>
+                        <div className="text-4xl font-bold text-foreground">{match.total_score}<span className="text-lg text-muted-foreground">/100</span></div>
+                        <StatusBadge status={match.recommendation} />
+                      </>
+                    )}
                   </div>
                   <div className="text-sm text-muted-foreground">Confidence: <span className="font-medium text-foreground">{match.confidence}</span></div>
                   {match.suggested_cv && <div className="text-sm text-muted-foreground">Suggested CV: <span className="font-medium text-foreground">{match.suggested_cv}</span></div>}
@@ -168,6 +242,7 @@ export default function JobDetail() {
                   <ListBlock title="Potential concerns" items={match.concerns} icon={AlertTriangle} tone="amber" />
                   <ListBlock title="Questions to investigate" items={match.questions} icon={HelpCircle} tone="amber" />
                 </div>
+                <ScoreBreakdown breakdown={match.breakdown} />
                 {(match.recommended_action || match.application_priority || match.suggested_deadline) && (
                   <div className="rounded-lg border border-border bg-muted/30 p-4 text-sm">
                     <p><span className="text-muted-foreground">Recommended action:</span> <span className="font-medium text-foreground">{match.recommended_action}</span></p>
