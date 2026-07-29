@@ -30,6 +30,22 @@ function withTimeout(promise, timeoutMs, message) {
   return Promise.race([promise, timeout]).finally(() => window.clearTimeout(timeoutId));
 }
 
+async function listOwnedRecords(entityName, query = {}, sort, limit) {
+  const user = await base44.auth.me();
+  const ownerEmail =
+    typeof user?.email === "string" ? user.email.trim().toLowerCase() : "";
+
+  if (!ownerEmail) {
+    throw new Error("A signed-in user with an email address is required.");
+  }
+
+  return base44.entities[entityName].filter(
+    { ...query, owner_email: ownerEmail },
+    sort,
+    limit
+  );
+}
+
 function ListBlock({ title, items, icon: Icon, tone = "default" }) {
   if (!items || items.length === 0) return null;
   const toneClass = tone === "green" ? "text-emerald-600" : tone === "red" ? "text-rose-600" : tone === "amber" ? "text-amber-600" : "text-muted-foreground";
@@ -77,17 +93,29 @@ export default function JobDetail() {
   const [loading, setLoading] = useState(true);
   const [scoring, setScoring] = useState(null);
   const [matching, setMatching] = useState(false);
-  const { data: candidates, loading: candidatesLoading } = useCollection("Candidate", () => base44.entities.Candidate.list());
-  const { data: cvs, loading: cvsLoading } = useCollection("CV", () => base44.entities.CV.list());
-  const { data: matches } = useCollection("JobMatch", () => base44.entities.JobMatch.filter({ job_id: id }, "-created_date", 5));
+  const { data: candidates, loading: candidatesLoading } = useCollection(
+    "Candidate",
+    () => listOwnedRecords("Candidate")
+  );
+  const { data: cvs, loading: cvsLoading } = useCollection(
+    "CV",
+    () => listOwnedRecords("CV")
+  );
+  const { data: matches } = useCollection(
+    "JobMatch",
+    () => listOwnedRecords("JobMatch", { job_id: id }, "-created_date", 5),
+    [id]
+  );
 
   useEffect(() => {
     (async () => {
       try {
         const j = await base44.entities.Job.get(id);
         setJob(j);
-        const settings = await base44.entities.ScoringSetting.list();
+        const settings = await listOwnedRecords("ScoringSetting", { active: true });
         setScoring(settings[0] || null);
+      } catch (error) {
+        toast.error(error?.message || "Unable to load this job. Please try again.");
       } finally {
         setLoading(false);
       }

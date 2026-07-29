@@ -216,6 +216,7 @@ function normaliseBreakdown(result, weights, verifiedCategories) {
   const breakdown = {};
   let awardedPoints = 0;
   let assessableWeight = 0;
+  let verifiedAssessableCategories = 0;
 
   for (const category of SCORING_CATEGORIES) {
     const maximum = Number(weights[category]) || 0;
@@ -236,12 +237,13 @@ function normaliseBreakdown(result, weights, verifiedCategories) {
           : "Needs evidence",
     };
     if (isAssessable) assessableWeight += maximum;
+    if (isAssessable && hasVerifiedEvidence) verifiedAssessableCategories += 1;
     awardedPoints += score;
   }
 
   return {
     breakdown,
-    totalScore: assessableWeight
+    totalScore: assessableWeight && verifiedAssessableCategories
       ? Math.round((awardedPoints / assessableWeight) * 100)
       : null,
   };
