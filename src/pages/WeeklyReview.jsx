@@ -137,6 +137,21 @@ export default function WeeklyReview() {
 
   if (jobsLoading) return <Loading label="Loading weekly review…" />;
 
+  const hasActivity = review.jobsThisWeek > 0 || review.appsThisWeek > 0 || review.interviewsThisWeek > 0;
+
+  if (!hasActivity) {
+    return (
+      <div>
+        <PageHeader title="Weekly Review" subtitle={`Performance summary for the last 7 days (since ${ukDate(ws.toISOString())})`} />
+        <EmptyState
+          title="Not enough activity to generate a weekly review yet"
+          description="Import jobs, run match analysis and submit applications to generate weekly insights and recommendations."
+          action={<Link to="/jobs/import" className="inline-flex items-center gap-2 rounded-lg bg-primary text-primary-foreground px-3 py-2 text-sm font-medium">Import a Job</Link>}
+        />
+      </div>
+    );
+  }
+
   return (
     <div>
       <PageHeader title="Weekly Review" subtitle={`Performance summary for the last 7 days (since ${ukDate(ws.toISOString())})`} />

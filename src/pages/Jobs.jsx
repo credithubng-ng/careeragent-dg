@@ -1,11 +1,11 @@
 import React, { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { base44 } from "@/api/base44Client";
 import { useCollection } from "@/lib/entityHooks";
 import { PageHeader, SectionCard, Loading, EmptyState, StatusBadge, ScoreBadge } from "@/components/ui-kit";
 import { ukDate, daysUntil, gbp } from "@/lib/format";
 import { Plus, Upload, Search, Filter, ExternalLink, Briefcase } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { listOwnedRecords } from "@/lib/ownedEntities";
 
 const SAVED_VIEWS = [
   { label: "Best Matches", filter: (j) => j.match_score >= 70 },
@@ -17,7 +17,7 @@ const SAVED_VIEWS = [
 ];
 
 export default function Jobs() {
-  const { data: jobs, loading, refetch } = useCollection("Job", () => base44.entities.Job.list("-created_date", 300));
+  const { data: jobs, loading, refetch } = useCollection("Job", () => listOwnedRecords("Job", {}, "-created_date", 300));
   const [search, setSearch] = useState("");
   const [view, setView] = useState("All");
   const [filters, setFilters] = useState({ status: "", employment_type: "", work_arrangement: "", minScore: "" });
@@ -39,7 +39,7 @@ export default function Jobs() {
     <div>
       <PageHeader
         title="Jobs"
-        subtitle={`${filtered.length} opportunity${filtered.length === 1 ? "" : "ies"} shown`}
+        subtitle={`${filtered.length} ${filtered.length === 1 ? "opportunity" : "opportunities"} shown`}
         actions={
           <>
             <Link to="/jobs/import" className="inline-flex items-center gap-2 rounded-lg bg-secondary text-secondary-foreground px-3 py-2 text-sm font-medium hover:bg-secondary/80"><Upload className="h-4 w-4" /> Quick Import</Link>
@@ -79,8 +79,10 @@ export default function Jobs() {
         </select>
       </div>
 
-      {loading ? <Loading /> : filtered.length === 0 ? (
-        <EmptyState title="No jobs found" description="Add a job manually or use quick import to paste a job description." action={<Link to="/jobs/new" className="inline-flex items-center gap-2 rounded-lg bg-primary text-primary-foreground px-3 py-2 text-sm font-medium"><Plus className="h-4 w-4" /> Add Job</Link>} />
+      {loading ? <Loading /> : jobs.length === 0 ? (
+        <EmptyState title="No jobs imported yet" description="Import a job description or add one manually to start tracking opportunities." action={<Link to="/jobs/import" className="inline-flex items-center gap-2 rounded-lg bg-primary text-primary-foreground px-3 py-2 text-sm font-medium"><Upload className="h-4 w-4" /> Import Job</Link>} />
+      ) : filtered.length === 0 ? (
+        <EmptyState title="No jobs found" description="Try adjusting your filters or search." />
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {filtered.map((j) => {

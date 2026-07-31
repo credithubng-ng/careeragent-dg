@@ -4,16 +4,16 @@ import { useCollection } from "@/lib/entityHooks";
 import { PageHeader, SectionCard, Loading, EmptyState, StatusBadge } from "@/components/ui-kit";
 import { Plus, X, Save, ExternalLink } from "lucide-react";
 import { toast } from "react-hot-toast";
-import { createOwnedRecord } from "@/lib/ownedEntities";
+import { createOwnedRecord, listOwnedRecords } from "@/lib/ownedEntities";
 
 const SOURCE_TYPES = ["Job Board", "Recruitment Agency", "Employer Career Site", "Email Alert", "Referral", "LinkedIn Contact", "Manual Entry", "API Feed", "Other"];
 
 export default function JobSources() {
-  const { data: sources, loading, refetch } = useCollection("JobSource", () => base44.entities.JobSource.list("-created_date", 100));
-  const { data: candidates } = useCollection("Candidate", () => base44.entities.Candidate.list());
-  const { data: jobs } = useCollection("Job", () => base44.entities.Job.list("-created_date", 300));
-  const { data: applications } = useCollection("Application", () => base44.entities.Application.list("-created_date", 300));
-  const { data: interviews } = useCollection("Interview", () => base44.entities.Interview.list("-created_date", 100));
+  const { data: sources, loading, refetch } = useCollection("JobSource", () => listOwnedRecords("JobSource", {}, "-created_date", 100));
+  const { data: candidates } = useCollection("Candidate", () => listOwnedRecords("Candidate"));
+  const { data: jobs } = useCollection("Job", () => listOwnedRecords("Job", {}, "-created_date", 300));
+  const { data: applications } = useCollection("Application", () => listOwnedRecords("Application", {}, "-created_date", 300));
+  const { data: interviews } = useCollection("Interview", () => listOwnedRecords("Interview", {}, "-created_date", 100));
   const [editing, setEditing] = useState(null);
 
   function blank() { return { source_name: "", source_type: "Job Board", website: "", active_status: true, reliability_rating: 3, notes: "" }; }

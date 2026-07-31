@@ -4,11 +4,11 @@ import { useCollection } from "@/lib/entityHooks";
 import { PageHeader, SectionCard, Loading, EmptyState } from "@/components/ui-kit";
 import { Plus, X, Save, Mail, Phone, Linkedin } from "lucide-react";
 import { toast } from "react-hot-toast";
-import { createOwnedRecord } from "@/lib/ownedEntities";
+import { createOwnedRecord, listOwnedRecords } from "@/lib/ownedEntities";
 
 export default function Contacts() {
-  const { data: contacts, loading, refetch } = useCollection("Contact", () => base44.entities.Contact.list("-created_date", 200));
-  const { data: candidates } = useCollection("Candidate", () => base44.entities.Candidate.list());
+  const { data: contacts, loading, refetch } = useCollection("Contact", () => listOwnedRecords("Contact", {}, "-created_date", 200));
+  const { data: candidates } = useCollection("Candidate", () => listOwnedRecords("Candidate"));
   const [editing, setEditing] = useState(null);
 
   function blank() { return { name: "", employer: "", role: "", email: "", telephone: "", linkedin_url: "", source: "", notes: "" }; }

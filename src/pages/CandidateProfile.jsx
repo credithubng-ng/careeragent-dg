@@ -4,15 +4,15 @@ import { useCollection } from "@/lib/entityHooks";
 import { PageHeader, SectionCard, Loading } from "@/components/ui-kit";
 import { Save, Plus, Trash2 } from "lucide-react";
 import { toast } from "react-hot-toast";
-import { createOwnedRecord } from "@/lib/ownedEntities";
+import { createOwnedRecord, listOwnedRecords } from "@/lib/ownedEntities";
 
 const SKILL_CATEGORIES = ["Data Governance", "Data Quality", "Data Strategy", "Data Management", "Metadata", "Data Lineage", "Data Stewardship", "Master Data Management", "Regulatory Compliance", "Risk and Controls", "Privacy", "Technology Platforms", "Leadership", "Stakeholder Management", "Programme Management", "Sector Knowledge"];
 const RIGHT_TO_WORK = ["UK Citizen", "UK ILR/Settled", "UK Visa Sponsorship Required", "EU Right to Work", "Other"];
 const CURRENCIES = ["GBP", "EUR", "USD", "NGN", "CAD", "AUD", "CHF"];
 
 export default function CandidateProfile() {
-  const { data: candidates, loading, refetch } = useCollection("Candidate", () => base44.entities.Candidate.list());
-  const { data: cvs } = useCollection("CV", () => base44.entities.CV.list("-created_date", 50));
+  const { data: candidates, loading, refetch } = useCollection("Candidate", () => listOwnedRecords("Candidate"));
+  const { data: cvs } = useCollection("CV", () => listOwnedRecords("CV", {}, "-created_date", 50));
   const [form, setForm] = useState(null);
   const [saving, setSaving] = useState(false);
 

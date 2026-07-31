@@ -5,7 +5,7 @@ import { PageHeader, Loading, EmptyState, StatusBadge } from "@/components/ui-ki
 import { ukDate, todayISO } from "@/lib/format";
 import { Plus, FileText, Star, X, Save, Edit, Upload, Loader2, ExternalLink } from "lucide-react";
 import { toast } from "react-hot-toast";
-import { createOwnedRecord } from "@/lib/ownedEntities";
+import { createOwnedRecord, listOwnedRecords } from "@/lib/ownedEntities";
 import MultiSelect from "@/components/MultiSelect";
 import { syncCandidateProfileFromCV } from "@/lib/candidateProfileSync";
 import {
@@ -124,8 +124,8 @@ const PRIMARY_TARGET_INDUSTRIES = [
 ];
 
 export default function CVLibrary() {
-  const { data: cvs, loading, refetch } = useCollection("CV", () => base44.entities.CV.list("-created_date", 100));
-  const { data: candidates } = useCollection("Candidate", () => base44.entities.Candidate.list());
+  const { data: cvs, loading, refetch } = useCollection("CV", () => listOwnedRecords("CV", {}, "-created_date", 100));
+  const { data: candidates } = useCollection("Candidate", () => listOwnedRecords("Candidate"));
   const [editing, setEditing] = useState(null);
   const [uploadStage, setUploadStage] = useState("");
   const [saving, setSaving] = useState(false);

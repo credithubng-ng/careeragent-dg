@@ -6,7 +6,7 @@ import { PageHeader, SectionCard, Loading } from "@/components/ui-kit";
 import { todayISO } from "@/lib/format";
 import { AlertCircle, ArrowLeft, Save } from "lucide-react";
 import { toast } from "react-hot-toast";
-import { createOwnedRecord } from "@/lib/ownedEntities";
+import { createOwnedRecord, listOwnedRecords } from "@/lib/ownedEntities";
 import { findDuplicateJob, normaliseJobPayload, validateJob } from "@/lib/jobCapture";
 
 const FIELDS = [
@@ -49,8 +49,8 @@ export default function JobForm() {
   const [loading, setLoading] = useState(editing);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
-  const { data: candidates } = useCollection("Candidate", () => base44.entities.Candidate.list());
-  const { data: jobs } = useCollection("Job", () => base44.entities.Job.list("-created_date", 500));
+  const { data: candidates } = useCollection("Candidate", () => listOwnedRecords("Candidate"));
+  const { data: jobs } = useCollection("Job", () => listOwnedRecords("Job", {}, "-created_date", 500));
 
   useEffect(() => {
     if (!editing) return;
