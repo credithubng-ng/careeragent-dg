@@ -168,6 +168,24 @@ export default function ApplicationStudio() {
     }
   }
 
+  async function confirmVacancy() {
+    try {
+      const dateStr = todayISO();
+      await base44.entities.Job.update(job.id, {
+        vacancy_confirmed_active: true,
+        vacancy_confirmed_date: dateStr,
+      });
+      setJob((current) => ({
+        ...current,
+        vacancy_confirmed_active: true,
+        vacancy_confirmed_date: dateStr,
+      }));
+      toast.success("Vacancy confirmed active");
+    } catch (error) {
+      toast.error(error?.message || "Unable to confirm the vacancy.");
+    }
+  }
+
   async function generate(section, questionText) {
     if (candidatesLoading || cvsLoading) {
       toast.error("Your Candidate Profile and Master CV are still loading.");
@@ -506,6 +524,7 @@ export default function ApplicationStudio() {
             cvs={cvs}
             application={application}
             onReadyToApply={application && PREPARATION_STAGES.includes(application.stage) ? markReadyToApply : undefined}
+            onConfirmVacancy={confirmVacancy}
             readyDisabled={!application || !PREPARATION_STAGES.includes(application.stage)}
           />
         </div>

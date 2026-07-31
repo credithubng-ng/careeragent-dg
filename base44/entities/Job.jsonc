@@ -159,15 +159,48 @@
     },
     "sector": {
       "type": "string"
+    },
+    "vacancy_confirmed_active": {
+      "type": "boolean",
+      "default": false
+    },
+    "vacancy_confirmed_date": {
+      "type": "string"
     }
   },
   "required": [
     "job_title"
   ],
   "rls": {
-    "create": { "data.owner_email": "{{user.email}}" },
-    "read": { "$or": [{ "data.owner_email": "{{user.email}}" }, { "user_condition": { "role": "admin" } }] },
-    "update": { "$or": [{ "data.owner_email": "{{user.email}}" }, { "user_condition": { "role": "admin" } }] },
-    "delete": { "data.owner_email": "{{user.email}}" }
+    "create": {
+      "data.owner_email": "{{user.email}}"
+    },
+    "read": {
+      "$or": [
+        {
+          "data.owner_email": "{{user.email}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "data.owner_email": "{{user.email}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "data.owner_email": "{{user.email}}"
+    }
   }
 }

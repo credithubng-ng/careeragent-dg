@@ -1,20 +1,19 @@
 import React from "react";
 import { cn } from "@/lib/utils";
 import { CheckCircle2, Circle, AlertTriangle } from "lucide-react";
-import { daysUntil } from "@/lib/format";
+import { daysUntil, ukDate } from "@/lib/format";
 
 /**
  * Application Readiness Checklist.
  *
- * Shows a checklist of mandatory and recommended preparation steps,
- * a percentage-ready bar, missing actions, and gates the
- * "Ready to Apply" action until mandatory items are complete.
- *
  * Mandatory for "Ready to Apply":
  *  - Verified Job Match exists
+ *  - Match evidence verified
  *  - Processed Master CV exists
  *  - At least one core document (Cover Letter or Supporting Statement) approved
- *  - Job has not expired
+ *  - Deadline check passes:
+ *      - closing_date exists and is today or future, OR
+ *      - no closing_date but vacancy manually confirmed active
  */
 export default function ReadinessChecklist({
   job,
@@ -23,6 +22,7 @@ export default function ReadinessChecklist({
   cvs = [],
   application,
   onReadyToApply,
+  onConfirmVacancy,
   readyDisabled = false,
 }) {
   const hasMatch = Boolean(match);
@@ -52,10 +52,27 @@ export default function ReadinessChecklist({
   const evidenceReviewed = docs.some(
     (d) => d.grounding_status === "Candidate Edited" || d.grounding_status === "Verified"
   );
-  const closeDays = daysUntil(job?.closing_date);
-  const deadlineChecked =
-    job?.closing_date && closeDays != null && closeDays >= 0;
+
+  // Deadline check logic
+  const closingDate = job?.closing_date;
+  const hasClosingDate = Boolean(closingDate);
+  const closeDays = daysUntil(closingDate);
+  const deadlinePassed = hasClosingDate && closeDays != null && closeDays < 0;
+  const deadlineActive = hasClosingDate && closeDays != null && closeDays >= 0;
+  const vacancyConfirmed = Boolean(job?.vacancy_confirmed_active);
+
+  // Deadline check passes if:
+  // - closing_date exists and is today or future, OR
+  // - no closing_date but vacancy manually confirmed active
+  const deadlineChecked = deadlineActive || (!hasClosingDate && vacancyConfirmed);
+
   const linkVerified = Boolean(job?.original_job_url);
+
+  const deadlineLabel = deadlinePassed
+    ? "Deadline passed — this vacancy has expired"
+    : !hasClosingDate
+      ? "Vacancy confirmed active (no closing date stated)"
+      : "Deadline checked (not expired)";
 
   const items = [
     { label: "Job Match completed", done: hasMatch, mandatory: true },
@@ -67,7 +84,7 @@ export default function ReadinessChecklist({
     { label: "Evidence reviewed by candidate", done: evidenceReviewed, mandatory: false },
     { label: "Application questions answered", done: questionDocs.length > 0, mandatory: false },
     { label: "At least one core document approved", done: coreDocApproved, mandatory: true },
-    { label: "Deadline checked (not expired)", done: deadlineChecked, mandatory: true },
+    { label: deadlineLabel, done: deadlineChecked, mandatory: true },
     { label: "Application link verified", done: linkVerified, mandatory: false },
   ];
 
@@ -114,6 +131,47 @@ export default function ReadinessChecklist({
           style={{ width: `${pct}%` }}
         />
       </div>
+
+      {/* Deadline / vacancy confirmation notice */}
+      {!hasClosingDate && (
+        <div className={cn(
+          "rounded-lg border p-3 mb-4 text-sm",
+          vacancyConfirmed
+            ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+            : "border-amber-200 bg-amber-50 text-amber-800"
+        )}>
+          <p className="font-medium">
+            {vacancyConfirmed
+              ? "Vacancy manually confirmed active"
+              : "No closing date stated — confirm the vacancy is still active."}
+          </p>
+          {vacancyConfirmed && job?.vacancy_confirmed_date && (
+            <p className="text-xs mt-0.5">Confirmed on {ukDate(job.vacancy_confirmed_date)}</p>
+          )}
+          {onConfirmVacancy && !vacancyConfirmed && (
+            <button
+              onClick={onConfirmVacancy}
+              className="mt-2 inline-flex items-center gap-1.5 rounded-lg bg-amber-600 text-white px-3 py-1.5 text-xs font-medium hover:bg-amber-700"
+            >
+              <CheckCircle2 className="h-3.5 w-3.5" />
+              Confirm Vacancy Active
+            </button>
+          )}
+          {vacancyConfirmed && onConfirmVacancy && (
+            <button
+              onClick={onConfirmVacancy}
+              className="mt-2 inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted"
+            >
+              Re-confirm
+            </button>
+          )}
+        </div>
+      )}
+      {hasClosingDate && deadlinePassed && (
+        <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 mb-4 text-sm text-rose-800">
+          <p className="font-medium">This vacancy has expired (closing date {ukDate(closingDate)}).</p>
+        </div>
+      )}
 
       {/* Checklist */}
       <ul className="space-y-2">
