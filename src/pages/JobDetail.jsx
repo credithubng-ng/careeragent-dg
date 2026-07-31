@@ -148,6 +148,7 @@ export default function JobDetail() {
           base44.entities.Job.update(id, {
             match_score: result.total_score,
             recommendation: result.recommendation,
+            last_match_date: new Date().toISOString(),
           }),
           JOB_UPDATE_TIMEOUT_MS,
           "Job summary update timed out."

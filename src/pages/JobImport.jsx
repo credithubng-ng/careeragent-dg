@@ -1,74 +1,92 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useCollection } from "@/lib/entityHooks";
-import { PageHeader, SectionCard } from "@/components/ui-kit";
-import { extractJobFromText } from "@/lib/careerAI";
-import { todayISO, daysUntil } from "@/lib/format";
-import { Sparkles, Save, ArrowLeft, AlertCircle, AlertTriangle } from "lucide-react";
+import { PageHeader, Loading } from "@/components/ui-kit";
+import { todayISO } from "@/lib/format";
+import { listOwnedRecords, createOwnedRecord, updateOwnedRecord } from "@/lib/ownedEntities";
+import { normaliseJobPayload, validateJob, findDuplicateJob } from "@/lib/jobCapture";
+import { analyseJobMatch, getUsableCandidateCVs } from "@/lib/careerAI";
+import { base44 } from "@/api/base44Client";
+import { computeExtractionStatus, MATCH_PROGRESS_STEPS } from "@/lib/jobUrlImport";
+import UrlImportTab from "@/components/job-import/UrlImportTab";
+import PasteImportTab from "@/components/job-import/PasteImportTab";
+import PdfImportTab from "@/components/job-import/PdfImportTab";
+import JobReviewForm from "@/components/job-import/JobReviewForm";
+import DuplicateJobDialog from "@/components/job-import/DuplicateJobDialog";
+import ImportProgress from "@/components/job-import/ImportProgress";
 import { toast } from "react-hot-toast";
-import { listOwnedRecords, createOwnedRecord } from "@/lib/ownedEntities";
-import { findDuplicateJob, normaliseJobPayload, validateJob } from "@/lib/jobCapture";
+import { cn } from "@/lib/utils";
+import { Link as LinkIcon, ClipboardPaste, FileText } from "lucide-react";
 
-const MAX_JOB_TEXT = 15000;
+const MATCH_TIMEOUT_MS = 120_000;
 
-const SELECT_OPTIONS = {
-  employment_type: ["", "Permanent", "Contract", "Interim", "Fixed Term", "Part-time"],
-  work_arrangement: ["", "Remote", "Hybrid", "Office", "Unspecified"],
-};
-const NUMBER_FIELDS = new Set(["salary_min", "salary_max", "required_years_experience"]);
-const DATE_FIELDS = new Set(["date_discovered", "date_posted", "closing_date"]);
-const LONG_FIELDS = new Set([
-  "job_description",
-  "responsibilities",
-  "essential_requirements",
-  "desirable_requirements",
-  "required_qualifications",
-  "required_certifications",
-  "required_technologies",
-  "required_sector_experience",
-  "right_to_work_requirements",
-  "security_clearance_requirement",
-]);
+function withTimeout(promise, timeoutMs, message) {
+  let timeoutId;
+  const timeout = new Promise((_, reject) => {
+    timeoutId = window.setTimeout(() => reject(new Error(message)), timeoutMs);
+  });
+  return Promise.race([promise, timeout]).finally(() => window.clearTimeout(timeoutId));
+}
+
+const TABS = [
+  { key: "url", label: "Import from URL", icon: LinkIcon },
+  { key: "paste", label: "Paste Job Description", icon: ClipboardPaste },
+  { key: "pdf", label: "Upload PDF", icon: FileText },
+];
 
 export default function JobImport() {
   const navigate = useNavigate();
-  const { data: candidates } = useCollection("Candidate", () => listOwnedRecords("Candidate", {}, "-created_date", 5));
-  const { data: jobs } = useCollection("Job", () => listOwnedRecords("Job", {}, "-created_date", 500));
-  const [text, setText] = useState("");
-  const [extracting, setExtracting] = useState(false);
+  const [activeTab, setActiveTab] = useState("url");
   const [review, setReview] = useState(null);
+  const [importMethod, setImportMethod] = useState("URL");
+  const [extractionMethod, setExtractionMethod] = useState("AI URL Import");
+  const [preservedUrl, setPreservedUrl] = useState("");
+  const [preservedText, setPreservedText] = useState("");
   const [saving, setSaving] = useState(false);
+  const [matchStep, setMatchStep] = useState(-1);
+  const [duplicate, setDuplicate] = useState(null);
   const [saveError, setSaveError] = useState("");
+  const cancelRef = useRef(false);
 
-  async function extract() {
-    if (!text.trim()) { toast.error("Paste a job description first"); return; }
-    if (text.trim().length < 100) {
-      toast.error("Paste the full job advert so the details can be extracted reliably.");
-      return;
-    }
-    if (text.trim().length > MAX_JOB_TEXT) {
-      toast.error(`The job text is too long (max ${MAX_JOB_TEXT.toLocaleString()} characters). Trim it and try again.`);
-      return;
-    }
-    setExtracting(true);
-    const t = toast.loading("Extracting job details with AI…");
-    try {
-      const result = await extractJobFromText(text);
-      setReview({
-        ...result,
-        job_description: text.trim(),
-        date_discovered: todayISO(),
-        currency: result.currency || "GBP",
-        job_status: "New",
-      });
-      setSaveError("");
-      toast.success("Extraction complete — review and save", { id: t });
-    } catch (error) {
-      toast.error(error?.message || "The job description could not be extracted.", { id: t });
-    } finally { setExtracting(false); }
+  const { data: candidates, loading: candidatesLoading } = useCollection(
+    "Candidate", () => listOwnedRecords("Candidate")
+  );
+  const { data: cvs, loading: cvsLoading } = useCollection(
+    "CV", () => listOwnedRecords("CV")
+  );
+  const { data: jobs } = useCollection(
+    "Job", () => listOwnedRecords("Job", {}, "-created_date", 500)
+  );
+  const { data: scoringSettings } = useCollection(
+    "ScoringSetting", () => listOwnedRecords("ScoringSetting", { active: true })
+  );
+
+  function handleExtracted(data, method, extractionMethodName) {
+    setReview({
+      ...data,
+      date_discovered: data.date_discovered || todayISO(),
+      currency: data.currency || "GBP",
+      job_status: "New",
+    });
+    setImportMethod(method);
+    setExtractionMethod(extractionMethodName);
+    setSaveError("");
   }
 
-  async function save() {
+  function handleFallback(targetTab) {
+    if (activeTab === "url") {
+      const urlInput = document.querySelector('input[type="url"]');
+      if (urlInput) setPreservedUrl(urlInput.value);
+    }
+    setActiveTab(targetTab);
+  }
+
+  function handleBackToTabs() {
+    setReview(null);
+    setSaveError("");
+  }
+
+  async function handleSave() {
     setSaveError("");
     const payload = normaliseJobPayload(review);
     const validationError = validateJob(payload);
@@ -77,21 +95,84 @@ export default function JobImport() {
       toast.error(validationError);
       return;
     }
-    const duplicate = findDuplicateJob(jobs, payload);
-    if (duplicate) {
-      const message = `This job already exists: ${duplicate.job_title} at ${duplicate.employer || duplicate.recruitment_agency}.`;
-      setSaveError(message);
-      toast.error(message);
+
+    const dup = findDuplicateJob(jobs, payload);
+    if (dup) {
+      setDuplicate(dup);
       return;
     }
+
+    await saveAndMatch(payload, null);
+  }
+
+  async function saveAndMatch(payload, existingJob) {
     setSaving(true);
+    cancelRef.current = false;
+    setMatchStep(0);
+
     try {
       const candidate = candidates[0];
-      await createOwnedRecord("Job", { ...payload, candidate_id: candidate?.id || "" });
-      toast.success("Job saved");
-      navigate("/jobs");
+      const extractionStatus = computeExtractionStatus(review);
+      const jobData = {
+        ...payload,
+        candidate_id: candidate?.id || "",
+        import_method: importMethod,
+        extraction_status: extractionStatus,
+        extraction_method: extractionMethod,
+      };
+
+      let savedJob;
+      if (existingJob) {
+        await updateOwnedRecord("Job", existingJob.id, jobData);
+        savedJob = { ...existingJob, ...jobData };
+      } else {
+        savedJob = await createOwnedRecord("Job", jobData);
+      }
+
+      base44.analytics.track({
+        eventName: "job_import_saved",
+        properties: { import_method: importMethod, extraction_status: extractionStatus },
+      });
+
+      const usableCVs = getUsableCandidateCVs(cvs);
+      if (!candidate || usableCVs.length === 0) {
+        setMatchStep(-1);
+        toast.success("Job saved. Add a candidate profile and CV to enable AI matching.");
+        navigate(`/jobs/${savedJob.id}`);
+        return;
+      }
+
+      if (cancelRef.current) return;
+
+      setMatchStep(1);
+      const result = await withTimeout(
+        analyseJobMatch(savedJob, candidate, cvs, scoringSettings[0]),
+        MATCH_TIMEOUT_MS,
+        "Match analysis timed out. The job is saved — you can run match analysis from the job page."
+      );
+
+      if (cancelRef.current) return;
+
+      setMatchStep(2);
+      await createOwnedRecord("JobMatch", {
+        candidate_id: candidate.id,
+        job_id: savedJob.id,
+        ...result,
+      });
+
+      setMatchStep(3);
+      await base44.entities.Job.update(savedJob.id, {
+        match_score: result.total_score,
+        recommendation: result.recommendation,
+        last_match_date: new Date().toISOString(),
+      });
+
+      setMatchStep(4);
+      toast.success("Job imported and match analysis completed");
+      navigate(`/jobs/${savedJob.id}`);
     } catch (error) {
-      const message = error?.message || "The job could not be saved. Please try again.";
+      setMatchStep(-1);
+      const message = error?.message || "Unable to complete the import.";
       setSaveError(message);
       toast.error(message);
     } finally {
@@ -99,72 +180,110 @@ export default function JobImport() {
     }
   }
 
+  function handleOpenExisting() {
+    if (duplicate) navigate(`/jobs/${duplicate.id}`);
+  }
+
+  async function handleUpdateExisting() {
+    if (!duplicate) return;
+    setDuplicate(null);
+    const payload = normaliseJobPayload(review);
+    await saveAndMatch(payload, duplicate);
+  }
+
+  async function handleSaveNew() {
+    if (!duplicate) return;
+    setDuplicate(null);
+    const payload = normaliseJobPayload(review);
+    base44.analytics.track({ eventName: "job_import_duplicate_saved_new" });
+    await saveAndMatch(payload, null);
+  }
+
+  function handleCancel() {
+    cancelRef.current = true;
+    setMatchStep(-1);
+    setSaving(false);
+    toast("Import cancelled. The job was not saved.");
+  }
+
+  if (candidatesLoading || cvsLoading) {
+    return <Loading label="Loading your profile…" />;
+  }
+
+  const showProgress = matchStep >= 0;
+
   return (
     <div>
-      <button onClick={() => navigate(-1)} className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-4"><ArrowLeft className="h-4 w-4" /> Back</button>
-      <PageHeader title="Quick Import" subtitle="Paste a full job description and AI will extract the key fields for review" />
+      <PageHeader
+        title="Add Opportunity"
+        subtitle="Import a job from a URL, paste the description, or upload a PDF — AI will extract the details and run match analysis."
+      />
 
       {!review ? (
-        <SectionCard title="Paste Job Description">
-          <textarea value={text} onChange={(e) => setText(e.target.value)} placeholder="Paste the entire job advert here…" className="w-full min-h-[320px] rounded-lg border border-input bg-card p-4 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
-          <div className="flex justify-end mt-4">
-            <button onClick={extract} disabled={extracting} className="inline-flex items-center gap-2 rounded-lg bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 disabled:opacity-50"><Sparkles className="h-4 w-4" /> {extracting ? "Extracting…" : "Extract with AI"}</button>
-          </div>
-        </SectionCard>
-      ) : (
-        <div className="space-y-6">
-          <SectionCard title="Review Extracted Details" description="Check the AI-extracted fields before saving. Edit anything that looks wrong.">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {Object.entries(review).filter(([key]) => !LONG_FIELDS.has(key)).map(([key, value]) => (
-                <div key={key}>
-                  <label className="block text-xs font-medium text-muted-foreground mb-1 capitalize">
-                    {key.replace(/_/g, " ")}
-                    {key === "job_title" && <span className="text-rose-500"> *</span>}
-                    {(key === "employer" || key === "recruitment_agency") && <span className="normal-case"> (one required)</span>}
-                  </label>
-                  {SELECT_OPTIONS[key] ? (
-                    <select value={value ?? ""} onChange={(event) => setReview({ ...review, [key]: event.target.value })} className="w-full rounded-lg border border-input bg-card px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring">
-                      {SELECT_OPTIONS[key].map((option) => <option key={option} value={option}>{option || "—"}</option>)}
-                    </select>
-                  ) : (
-                    <input type={NUMBER_FIELDS.has(key) ? "number" : DATE_FIELDS.has(key) ? "date" : "text"} min={NUMBER_FIELDS.has(key) ? "0" : undefined} value={value ?? ""} onChange={(event) => setReview({ ...review, [key]: event.target.value })} className="w-full rounded-lg border border-input bg-card px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
-                  )}
-                </div>
-              ))}
-            </div>
-            {Object.entries(review).filter(([key]) => LONG_FIELDS.has(key)).map(([key, value]) => (
-              <div key={key} className="mt-4">
-                <label className="block text-xs font-medium text-muted-foreground mb-1 capitalize">{key.replace(/_/g, " ")}</label>
-                <textarea value={value || ""} onChange={(event) => setReview({ ...review, [key]: event.target.value })} className="w-full min-h-[120px] rounded-lg border border-input bg-card p-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring" />
-              </div>
+        <div>
+          <div className="flex gap-1 mb-6 rounded-xl border border-border bg-muted/30 p-1">
+            {TABS.map((tab) => (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                className={cn(
+                  "flex-1 inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                  activeTab === tab.key
+                    ? "bg-card text-foreground shadow-sm"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                <tab.icon className="h-4 w-4" />
+                <span className="hidden sm:inline">{tab.label}</span>
+                <span className="sm:hidden">{tab.key === "url" ? "URL" : tab.key === "paste" ? "Paste" : "PDF"}</span>
+              </button>
             ))}
-          </SectionCard>
-          <p className="text-xs text-muted-foreground">
-            Job title is required. Enter either an employer or a recruitment agency.
-          </p>
-          {review.closing_date && daysUntil(review.closing_date) < 0 && (
-            <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-              <span>This job's closing date has already passed. Verify before saving.</span>
-            </div>
-          )}
-          {!review.employer?.trim() && !review.recruitment_agency?.trim() && (
-            <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-              <span>No employer or recruitment agency was detected. Add one before saving.</span>
-            </div>
-          )}
-          {saveError && (
-            <div role="alert" className="flex items-start gap-2 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
-              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-              <span>{saveError}</span>
-            </div>
-          )}
-          <div className="flex justify-end gap-2">
-            <button disabled={saving} onClick={() => { setReview(null); setSaveError(""); }} className="rounded-lg border border-border bg-card px-4 py-2 text-sm font-medium hover:bg-muted disabled:opacity-50">Re-extract</button>
-            <button disabled={saving} onClick={save} className="inline-flex items-center gap-2 rounded-lg bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 disabled:opacity-50"><Save className="h-4 w-4" /> {saving ? "Saving…" : "Save Job"}</button>
           </div>
+
+          {activeTab === "url" && (
+            <UrlImportTab
+              onExtracted={handleExtracted}
+              onFallback={handleFallback}
+              preservingUrl={preservedUrl}
+            />
+          )}
+          {activeTab === "paste" && (
+            <PasteImportTab
+              onExtracted={handleExtracted}
+              initialText={preservedText}
+            />
+          )}
+          {activeTab === "pdf" && (
+            <PdfImportTab onExtracted={handleExtracted} />
+          )}
         </div>
+      ) : (
+        <JobReviewForm
+          review={review}
+          onChange={setReview}
+          onSave={handleSave}
+          onBack={handleBackToTabs}
+          saving={saving || showProgress}
+          saveError={saveError}
+          importMethod={importMethod}
+        />
+      )}
+
+      {showProgress && (
+        <ImportProgress
+          steps={MATCH_PROGRESS_STEPS}
+          currentIndex={matchStep}
+          onCancel={handleCancel}
+        />
+      )}
+
+      {duplicate && (
+        <DuplicateJobDialog
+          duplicate={duplicate}
+          onOpenExisting={handleOpenExisting}
+          onUpdateExisting={handleUpdateExisting}
+          onSaveNew={handleSaveNew}
+        />
       )}
     </div>
   );

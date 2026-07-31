@@ -40,6 +40,10 @@ const JOB_FIELDS = [
   "match_score",
   "recommendation",
   "sector",
+  "import_method",
+  "extraction_status",
+  "extraction_method",
+  "last_match_date",
 ];
 
 const NUMBER_FIELDS = new Set([

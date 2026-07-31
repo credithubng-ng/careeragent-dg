@@ -166,6 +166,30 @@
     },
     "vacancy_confirmed_date": {
       "type": "string"
+    },
+    "import_method": {
+      "type": "string",
+      "enum": [
+        "URL",
+        "Paste",
+        "PDF",
+        "Manual"
+      ]
+    },
+    "extraction_status": {
+      "type": "string",
+      "enum": [
+        "Success",
+        "Partial",
+        "Failed",
+        "Manual"
+      ]
+    },
+    "extraction_method": {
+      "type": "string"
+    },
+    "last_match_date": {
+      "type": "string"
     }
   },
   "required": [

@@ -42,7 +42,7 @@ export default function Jobs() {
         subtitle={`${filtered.length} ${filtered.length === 1 ? "opportunity" : "opportunities"} shown`}
         actions={
           <>
-            <Link to="/jobs/import" className="inline-flex items-center gap-2 rounded-lg bg-secondary text-secondary-foreground px-3 py-2 text-sm font-medium hover:bg-secondary/80"><Upload className="h-4 w-4" /> Quick Import</Link>
+            <Link to="/jobs/import" className="inline-flex items-center gap-2 rounded-lg bg-secondary text-secondary-foreground px-3 py-2 text-sm font-medium hover:bg-secondary/80"><Upload className="h-4 w-4" /> Add Opportunity</Link>
             <Link to="/jobs/new" className="inline-flex items-center gap-2 rounded-lg bg-primary text-primary-foreground px-3 py-2 text-sm font-medium hover:bg-primary/90"><Plus className="h-4 w-4" /> Add Job</Link>
           </>
         }
