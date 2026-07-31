@@ -7,7 +7,8 @@ import { ukDate, daysUntil, gbp } from "@/lib/format";
 import { analyseJobMatch, getUsableCandidateCVs } from "@/lib/careerAI";
 import { ArrowLeft, Sparkles, Flame, Check, X, HelpCircle, AlertTriangle, Wand2, Plus, ExternalLink, CalendarPlus } from "lucide-react";
 import { toast } from "react-hot-toast";
-import { createOwnedRecord } from "@/lib/ownedEntities";
+import { createOwnedRecord, listOwnedRecords as sharedListOwned } from "@/lib/ownedEntities";
+import { rankOpportunity, OPPORTUNITY_LEVELS } from "@/lib/opportunityRanking";
 
 const MATCH_TIMEOUT_MS = 90_000;
 const JOB_UPDATE_TIMEOUT_MS = 15_000;
@@ -30,21 +31,8 @@ function withTimeout(promise, timeoutMs, message) {
   return Promise.race([promise, timeout]).finally(() => window.clearTimeout(timeoutId));
 }
 
-async function listOwnedRecords(entityName, query = {}, sort, limit) {
-  const user = await base44.auth.me();
-  const ownerEmail =
-    typeof user?.email === "string" ? user.email.trim().toLowerCase() : "";
-
-  if (!ownerEmail) {
-    throw new Error("A signed-in user with an email address is required.");
-  }
-
-  return base44.entities[entityName].filter(
-    { ...query, owner_email: ownerEmail },
-    sort,
-    limit
-  );
-}
+// Use the shared ownership-filtered helper for all entity reads.
+const listOwnedRecords = sharedListOwned;
 
 function ListBlock({ title, items, icon: Icon, tone = "default" }) {
   if (!items || items.length === 0) return null;
@@ -225,6 +213,25 @@ export default function JobDetail() {
         subtitle={`${job.employer}${job.recruitment_agency ? ` · via ${job.recruitment_agency}` : ""}`}
         actions={<StatusBadge status={job.job_status} />}
       />
+
+      {/* Opportunity ranking */}
+      {(() => {
+        const opp = rankOpportunity(job, match, candidates[0]);
+        const toneClasses = {
+          green: "border-emerald-200 bg-emerald-50 text-emerald-800",
+          amber: "border-amber-200 bg-amber-50 text-amber-800",
+          rose: "border-rose-200 bg-rose-50 text-rose-800",
+          slate: "border-slate-200 bg-slate-50 text-slate-700",
+        };
+        return (
+          <div className={`mb-6 rounded-xl border p-4 ${toneClasses[opp.tone] || toneClasses.slate}`}>
+            <div className="flex items-center gap-2 mb-1">
+              <span className="font-semibold">{opp.label}</span>
+            </div>
+            <p className="text-sm opacity-90">{opp.explanation}</p>
+          </div>
+        );
+      })()}
 
       <div className="flex flex-wrap gap-2 mb-6">
         {actions.map((a) => (

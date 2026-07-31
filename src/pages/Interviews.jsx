@@ -7,14 +7,14 @@ import { ukDate, ukDateTime, daysUntil, todayISO } from "@/lib/format";
 import { generateInterviewQuestions } from "@/lib/careerAI";
 import { Plus, X, Save, Sparkles, ExternalLink, Loader2 } from "lucide-react";
 import { toast } from "react-hot-toast";
-import { createOwnedRecord } from "@/lib/ownedEntities";
+import { listOwnedRecords, createOwnedRecord, updateOwnedRecord } from "@/lib/ownedEntities";
 
 const FORMATS = ["In Person", "Video", "Phone", "Assessment Centre", "Panel"];
 const PREP = ["Not Started", "In Progress", "Prepared", "Completed"];
 
 export default function Interviews() {
-  const { data: interviews, loading, refetch } = useCollection("Interview", () => base44.entities.Interview.list("-interview_date", 100));
-  const { data: candidates } = useCollection("Candidate", () => base44.entities.Candidate.list());
+  const { data: interviews, loading, refetch } = useCollection("Interview", () => listOwnedRecords("Interview", {}, "-interview_date", 200));
+  const { data: candidates } = useCollection("Candidate", () => listOwnedRecords("Candidate", {}, "-created_date", 5));
   const [editing, setEditing] = useState(null);
   const [generating, setGenerating] = useState(null);
 
@@ -24,7 +24,7 @@ export default function Interviews() {
     if (!iv.employer) { toast.error("Employer required"); return; }
     const candidate = candidates[0];
     const payload = { ...iv, candidate_id: candidate?.id };
-    if (iv.id) await base44.entities.Interview.update(iv.id, payload);
+    if (iv.id) await updateOwnedRecord("Interview", iv.id, payload);
     else await createOwnedRecord("Interview", payload);
     setEditing(null); refetch(); toast.success("Interview saved");
   }
@@ -35,7 +35,7 @@ export default function Interviews() {
       const job = iv.job_id ? await base44.entities.Job.get(iv.job_id) : { job_title: iv.job_title, employer: iv.employer };
       const candidate = candidates[0];
       const qs = await generateInterviewQuestions(job, candidate);
-      await base44.entities.Interview.update(iv.id, { likely_questions: qs });
+      await updateOwnedRecord("Interview", iv.id, { likely_questions: qs });
       refetch();
       toast.success("Questions generated");
     } catch { toast.error("Failed to generate questions"); }

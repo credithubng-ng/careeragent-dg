@@ -10,6 +10,7 @@ import { toast } from "react-hot-toast";
 import { cn } from "@/lib/utils";
 import { createOwnedRecord } from "@/lib/ownedEntities";
 import DocumentView, { markdownToHtml } from "@/components/DocumentView";
+import ReadinessChecklist from "@/components/ReadinessChecklist";
 
 const SECTIONS = [
   { type: "Tailored Profile", label: "Tailored Profile", desc: "Revised professional summary aligned with the role" },
@@ -497,6 +498,17 @@ export default function ApplicationStudio() {
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
+        <div className="lg:col-span-2">
+          <ReadinessChecklist
+            job={selectedJob}
+            match={match}
+            docs={docs}
+            cvs={cvs}
+            application={application}
+            onReadyToApply={application && PREPARATION_STAGES.includes(application.stage) ? markReadyToApply : undefined}
+            readyDisabled={!application || !PREPARATION_STAGES.includes(application.stage)}
+          />
+        </div>
         {SECTIONS.map((s) => {
           const doc = docs.find((d) => d.document_type === s.type);
           return (

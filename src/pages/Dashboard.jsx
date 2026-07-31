@@ -1,12 +1,19 @@
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useMemo } from "react";
 import { Link } from "react-router-dom";
-import { base44 } from "@/api/base44Client";
 import { useCollection } from "@/lib/entityHooks";
-import { PageHeader, StatCard, SectionCard, Loading, EmptyState, ScoreBadge } from "@/components/ui-kit";
+import { PageHeader, SectionCard, Loading, EmptyState, StatCard } from "@/components/ui-kit";
 import GitHubIssues from "@/components/GitHubIssues";
-import { ukDate, daysUntil, recommendationBand } from "@/lib/format";
-import { Briefcase, Send, CalendarClock, Trophy, Target, TrendingUp, AlertCircle, Flame } from "lucide-react";
-import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, PieChart, Pie, Cell, LineChart, Line, CartesianGrid, Legend } from "recharts";
+import { ukDate, daysUntil } from "@/lib/format";
+import { listOwnedRecords } from "@/lib/ownedEntities";
+import { cn } from "@/lib/utils";
+import {
+  Briefcase, Send, CalendarClock, Trophy, Target, TrendingUp,
+  Flame, Users, Clock, CheckCircle2, AlertCircle,
+} from "lucide-react";
+import {
+  ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid,
+  PieChart, Pie, Cell, LineChart, Line, Legend,
+} from "recharts";
 
 const MATCH_BANDS = [
   { name: "Excellent", color: "#10b981", min: 85 },
@@ -15,32 +22,100 @@ const MATCH_BANDS = [
   { name: "Weak", color: "#f97316", min: 40 },
   { name: "Do Not Apply", color: "#f43f5e", min: 0 },
 ];
-
 const PIE_COLORS = ["#10b981", "#22c55e", "#f59e0b", "#f97316", "#f43f5e"];
 
+// Weekly targets for a 60-day campaign
+const WEEKLY_TARGETS = {
+  jobsReviewed: 25,
+  applications: 10,
+  recruiterContacts: 5,
+  interviewPrep: 2,
+};
+
+function weekStart() {
+  const d = new Date();
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() - d.getDay()); // Sunday as week start
+  return d;
+}
+
+function ProgressBar({ value, target, tone }) {
+  const pct = target > 0 ? Math.min(100, Math.round((value / target) * 100)) : 0;
+  const tones = {
+    green: "bg-emerald-500",
+    amber: "bg-amber-500",
+    red: "bg-rose-500",
+    blue: "bg-blue-500",
+  };
+  const labels = {
+    green: "On Track",
+    amber: "Needs Attention",
+    red: "Behind Target",
+    blue: "In Progress",
+  };
+  return (
+    <div>
+      <div className="flex items-center justify-between text-xs mb-1">
+        <span className="text-muted-foreground">{value} / {target}</span>
+        <span className={cn("font-medium", tone === "green" ? "text-emerald-600" : tone === "amber" ? "text-amber-600" : tone === "red" ? "text-rose-600" : "text-blue-600")}>{labels[tone]}</span>
+      </div>
+      <div className="h-2 w-full rounded-full bg-slate-100 overflow-hidden">
+        <div className={cn("h-full rounded-full", tones[tone])} style={{ width: `${pct}%` }} />
+      </div>
+    </div>
+  );
+}
+
+function progressTone(value, target) {
+  if (target <= 0) return "blue";
+  const pct = value / target;
+  if (pct >= 1) return "green";
+  if (pct >= 0.5) return "amber";
+  return "red";
+}
+
 export default function Dashboard() {
-  const { data: jobs, loading: jobsLoading } = useCollection("Job", () => base44.entities.Job.list("-created_date", 200));
-  const { data: applications, loading: appsLoading } = useCollection("Application", () => base44.entities.Application.list("-created_date", 200));
-  const { data: interviews } = useCollection("Interview", () => base44.entities.Interview.list("-created_date", 100));
-  const { data: goals } = useCollection("CampaignGoal", () => base44.entities.CampaignGoal.list());
+  const { data: jobs, loading: jobsLoading } = useCollection("Job", () => listOwnedRecords("Job", {}, "-created_date", 300));
+  const { data: applications, loading: appsLoading } = useCollection("Application", () => listOwnedRecords("Application", {}, "-created_date", 300));
+  const { data: interviews } = useCollection("Interview", () => listOwnedRecords("Interview", {}, "-interview_date", 200));
+  const { data: goals } = useCollection("CampaignGoal", () => listOwnedRecords("CampaignGoal", {}, "-created_date", 5));
+  const { data: contacts } = useCollection("Contact", () => listOwnedRecords("Contact", {}, "-created_date", 200));
 
   const goal = goals[0];
-  const daysLeft = useMemo(() => goal?.target_end_date ? daysUntil(goal.target_end_date) : null, [goal]);
 
   const stats = useMemo(() => {
+    const ws = weekStart();
     const newJobs = jobs.filter((j) => j.job_status === "New").length;
-    const highPriority = jobs.filter((j) => j.job_status === "High Priority").length;
-    const preparing = applications.filter((a) => ["Preparing", "Ready to Apply"].includes(a.stage)).length;
-    const submitted = applications.filter((a) => ["Applied", "Recruiter Contact", "First Interview", "Further Interview", "Assessment", "Reference Check", "Offer"].includes(a.stage)).length;
+    const jobsReviewed = jobs.filter((j) => j.job_status !== "New").length;
+    const jobsReviewedThisWeek = jobs.filter((j) => j.job_status !== "New" && j.created_date && new Date(j.created_date) >= ws).length;
+    const strongFit = jobs.filter((j) => j.match_score != null && j.match_score >= 70).length;
+    const submittedStages = ["Applied", "Recruiter Contact", "First Interview", "Further Interview", "Assessment", "Reference Check", "Offer"];
+    const submitted = applications.filter((a) => submittedStages.includes(a.stage)).length;
+    const submittedThisWeek = applications.filter((a) => submittedStages.includes(a.stage) && a.date_applied && new Date(a.date_applied) >= ws).length;
+    const recruiterContacts = applications.filter((a) => ["Recruiter Contact", "First Interview", "Further Interview", "Assessment", "Reference Check", "Offer"].includes(a.stage)).length;
+    const recruiterContactsThisWeek = contacts.filter((c) => c.created_date && new Date(c.created_date) >= ws).length + applications.filter((a) => a.stage === "Recruiter Contact" && a.date_applied && new Date(a.date_applied) >= ws).length;
     const interviewCount = interviews.length;
     const offers = applications.filter((a) => a.stage === "Offer").length;
     const scored = jobs.filter((j) => j.match_score != null);
     const avgScore = scored.length ? Math.round(scored.reduce((s, j) => s + j.match_score, 0) / scored.length) : 0;
     const appsToInterview = submitted ? Math.round((interviewCount / submitted) * 100) : 0;
-    const sevenDaysAgo = new Date(); sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-    const recentApps = applications.filter((a) => a.date_applied && new Date(a.date_applied) >= sevenDaysAgo).length;
-    return { newJobs, highPriority, preparing, submitted, interviewCount, offers, avgScore, appsToInterview, recentApps };
-  }, [jobs, applications, interviews]);
+    const today = new Date().toISOString().slice(0, 10);
+    const followUpsDue = applications.filter((a) => a.follow_up_date && a.follow_up_date <= today && !["Offer", "Rejected", "Withdrawn"].includes(a.stage)).length;
+    const awaitingAction = applications.filter((a) => ["Preparing", "Ready to Apply"].includes(a.stage)).length;
+    const interviewPrepThisWeek = interviews.filter((iv) => iv.preparation_status && iv.preparation_status !== "Not Started" && iv.created_date && new Date(iv.created_date) >= ws).length;
+    return {
+      newJobs, jobsReviewed, jobsReviewedThisWeek, strongFit, submitted, submittedThisWeek,
+      recruiterContacts, recruiterContactsThisWeek, interviewCount, offers, avgScore,
+      appsToInterview, followUpsDue, awaitingAction, interviewPrepThisWeek,
+    };
+  }, [jobs, applications, interviews, contacts]);
+
+  const daysLeft = useMemo(() => goal?.target_end_date ? daysUntil(goal.target_end_date) : null, [goal]);
+  const campaignDays = useMemo(() => {
+    if (!goal?.start_date || !goal?.target_end_date) return 60;
+    const diff = daysUntil(goal.start_date);
+    return diff != null ? Math.max(1, 60 + (60 - (diff + 60))) : 60;
+  }, [goal]);
 
   const bandData = useMemo(() => {
     const bands = MATCH_BANDS.map((b) => ({ name: b.name, count: 0, color: b.color }));
@@ -88,51 +163,88 @@ export default function Dashboard() {
 
   return (
     <div>
-      <PageHeader title="Dashboard" subtitle="Executive overview of your Data Governance job-search campaign" />
+      <PageHeader title="Dashboard" subtitle="Your 60-day Data Governance job-search campaign" />
 
-      {/* Campaign tracker */}
-      <SectionCard title="60-Day Campaign Tracker" className="mb-6">
-        {goal ? (
-          <div>
-            <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
-              <div>
-                <p className="font-medium text-foreground">{goal.campaign_name}</p>
-                <p className="text-xs text-muted-foreground">{ukDate(goal.start_date)} – {ukDate(goal.target_end_date)}</p>
-              </div>
-              <div className="text-right">
-                <p className="text-3xl font-bold text-foreground">{daysLeft ?? "—"}</p>
-                <p className="text-xs text-muted-foreground">days remaining</p>
-              </div>
+      {/* 60-Day Scorecard */}
+      <SectionCard title="60-Day Job Search Scorecard" className="mb-6"
+        description={goal ? `${ukDate(goal.start_date)} – ${ukDate(goal.target_end_date)}` : "Set your campaign dates in Settings"}
+        actions={
+          daysLeft != null ? (
+            <div className="text-right">
+              <p className={cn("text-3xl font-bold", daysLeft <= 7 ? "text-rose-600" : daysLeft <= 14 ? "text-amber-600" : "text-foreground")}>{daysLeft}</p>
+              <p className="text-xs text-muted-foreground">days remaining</p>
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              {[
-                { label: "Applications", val: stats.submitted, target: goal.target_applications },
-                { label: "Recruiter Talks", val: applications.filter(a => a.stage === "Recruiter Contact").length, target: goal.target_recruiter_conversations },
-                { label: "Interviews", val: stats.interviewCount, target: goal.target_interviews },
-                { label: "Offers", val: stats.offers, target: goal.target_offers },
-              ].map((g) => (
-                <div key={g.label} className="rounded-lg border border-border bg-muted/30 p-3">
-                  <p className="text-xs text-muted-foreground">{g.label}</p>
-                  <p className="text-lg font-semibold text-foreground">{g.val}<span className="text-sm text-muted-foreground"> / {g.target ?? "—"}</span></p>
+          ) : <Link to="/settings" className="text-sm font-medium text-primary hover:underline">Set up campaign</Link>
+        }
+      >
+        {goal ? (
+          <div className="space-y-5">
+            {/* Key metrics grid */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+              <StatCard label="Jobs Reviewed" value={stats.jobsReviewed} hint={`${stats.jobsReviewedThisWeek} this week`} icon={Briefcase} accent="blue" />
+              <StatCard label="Strong-Fit Jobs" value={stats.strongFit} hint="Match score ≥ 70" icon={Flame} accent="green" />
+              <StatCard label="Applications Submitted" value={stats.submitted} hint={`${stats.submittedThisWeek} this week`} icon={Send} accent="primary" />
+              <StatCard label="Recruiter Contacts" value={stats.recruiterContacts} hint={`${stats.recruiterContactsThisWeek} this week`} icon={Users} accent="violet" />
+              <StatCard label="Interviews Secured" value={stats.interviewCount} icon={CalendarClock} accent="violet" />
+              <StatCard label="Follow-Ups Due" value={stats.followUpsDue} icon={Clock} accent={stats.followUpsDue > 0 ? "amber" : "green"} />
+              <StatCard label="Awaiting Action" value={stats.awaitingAction} hint="Preparing / Ready" icon={Target} accent="amber" />
+              <StatCard label="Avg Match Score" value={stats.avgScore || "—"} icon={TrendingUp} accent="green" />
+              <StatCard label="App→Interview Rate" value={`${stats.appsToInterview}%`} icon={TrendingUp} accent="blue" />
+              <StatCard label="Offers" value={stats.offers} icon={Trophy} accent="green" />
+            </div>
+
+            {/* Weekly targets */}
+            <div>
+              <p className="text-sm font-medium text-foreground mb-3">Progress toward weekly targets</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="rounded-lg border border-border bg-muted/30 p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium text-foreground">Jobs reviewed this week</span>
+                    <Briefcase className="h-4 w-4 text-muted-foreground" />
+                  </div>
+                  <ProgressBar value={stats.jobsReviewedThisWeek} target={WEEKLY_TARGETS.jobsReviewed} tone={progressTone(stats.jobsReviewedThisWeek, WEEKLY_TARGETS.jobsReviewed)} />
                 </div>
-              ))}
+                <div className="rounded-lg border border-border bg-muted/30 p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium text-foreground">Applications submitted this week</span>
+                    <Send className="h-4 w-4 text-muted-foreground" />
+                  </div>
+                  <ProgressBar value={stats.submittedThisWeek} target={WEEKLY_TARGETS.applications} tone={progressTone(stats.submittedThisWeek, WEEKLY_TARGETS.applications)} />
+                </div>
+                <div className="rounded-lg border border-border bg-muted/30 p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium text-foreground">Recruiter contacts this week</span>
+                    <Users className="h-4 w-4 text-muted-foreground" />
+                  </div>
+                  <ProgressBar value={stats.recruiterContactsThisWeek} target={WEEKLY_TARGETS.recruiterContacts} tone={progressTone(stats.recruiterContactsThisWeek, WEEKLY_TARGETS.recruiterContacts)} />
+                </div>
+                <div className="rounded-lg border border-border bg-muted/30 p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium text-foreground">Interview prep sessions this week</span>
+                    <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
+                  </div>
+                  <ProgressBar value={stats.interviewPrepThisWeek} target={WEEKLY_TARGETS.interviewPrep} tone={progressTone(stats.interviewPrepThisWeek, WEEKLY_TARGETS.interviewPrep)} />
+                </div>
+              </div>
+              {stats.followUpsDue > 0 && (
+                <div className="mt-3 flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-800">
+                  <AlertCircle className="h-4 w-4 shrink-0" />
+                  <span>{stats.followUpsDue} follow-up{stats.followUpsDue === 1 ? "" : "s"} due — complete them before starting new applications.</span>
+                </div>
+              )}
             </div>
           </div>
         ) : (
-          <EmptyState title="No campaign set" description="Set your campaign start date, targets and end date in Settings." action={<Link to="/settings" className="text-sm font-medium text-primary hover:underline">Set up campaign</Link>} />
+          <EmptyState title="No campaign set" description="Set your campaign start date, targets and end date in Settings to activate the scorecard." action={<Link to="/settings" className="inline-flex items-center gap-2 rounded-lg bg-primary text-primary-foreground px-3 py-2 text-sm font-medium">Set up campaign</Link>} />
         )}
       </SectionCard>
 
-      {/* Stat cards */}
+      {/* Quick stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <StatCard label="New Jobs" value={stats.newJobs} icon={Briefcase} accent="blue" />
-        <StatCard label="High Priority" value={stats.highPriority} icon={Flame} accent="violet" />
-        <StatCard label="In Preparation" value={stats.preparing} icon={Target} accent="amber" />
-        <StatCard label="Submitted" value={stats.submitted} icon={Send} accent="primary" />
-        <StatCard label="Interviews" value={stats.interviewCount} icon={CalendarClock} accent="violet" />
-        <StatCard label="Offers" value={stats.offers} icon={Trophy} accent="green" />
-        <StatCard label="Avg Match Score" value={stats.avgScore} icon={TrendingUp} accent="green" />
-        <StatCard label="Apps (7 days)" value={stats.recentApps} icon={Send} accent="blue" />
+        <StatCard label="High Priority" value={jobs.filter((j) => j.job_status === "High Priority").length} icon={Flame} accent="violet" />
+        <StatCard label="In Preparation" value={stats.awaitingAction} icon={Target} accent="amber" />
+        <StatCard label="Apps (7 days)" value={stats.submittedThisWeek} icon={Send} accent="primary" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">

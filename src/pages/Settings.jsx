@@ -1,17 +1,16 @@
 import React, { useState } from "react";
-import { base44 } from "@/api/base44Client";
 import { useCollection } from "@/lib/entityHooks";
 import { PageHeader, SectionCard, Loading, EmptyState } from "@/components/ui-kit";
 import { DEFAULT_WEIGHTS, DEFAULT_HARD_STOPS } from "@/lib/careerAI";
 import { todayISO } from "@/lib/format";
 import { Save, Plus, X } from "lucide-react";
 import { toast } from "react-hot-toast";
-import { createOwnedRecord } from "@/lib/ownedEntities";
+import { listOwnedRecords, createOwnedRecord, updateOwnedRecord } from "@/lib/ownedEntities";
 
 export default function Settings() {
-  const { data: candidates, loading } = useCollection("Candidate", () => base44.entities.Candidate.list());
-  const { data: goals, refetch: refetchGoals } = useCollection("CampaignGoal", () => base44.entities.CampaignGoal.list());
-  const { data: settings, refetch: refetchSettings } = useCollection("ScoringSetting", () => base44.entities.ScoringSetting.list());
+  const { data: candidates, loading } = useCollection("Candidate", () => listOwnedRecords("Candidate", {}, "-created_date", 5));
+  const { data: goals, refetch: refetchGoals } = useCollection("CampaignGoal", () => listOwnedRecords("CampaignGoal", {}, "-created_date", 5));
+  const { data: settings, refetch: refetchSettings } = useCollection("ScoringSetting", () => listOwnedRecords("ScoringSetting", {}, "-created_date", 5));
 
   const [goal, setGoal] = useState(null);
   const [scoring, setScoring] = useState(null);
@@ -28,7 +27,7 @@ export default function Settings() {
 
   async function saveGoal() {
     try {
-      if (goal.id) await base44.entities.CampaignGoal.update(goal.id, goal);
+      if (goal.id) await updateOwnedRecord("CampaignGoal", goal.id, goal);
       else await createOwnedRecord("CampaignGoal", goal);
       refetchGoals(); toast.success("Campaign saved");
     } catch { toast.error("Failed to save campaign"); }
@@ -36,7 +35,7 @@ export default function Settings() {
 
   async function saveScoring() {
     try {
-      if (scoring.id) await base44.entities.ScoringSetting.update(scoring.id, scoring);
+      if (scoring.id) await updateOwnedRecord("ScoringSetting", scoring.id, scoring);
       else await createOwnedRecord("ScoringSetting", scoring);
       refetchSettings(); toast.success("Scoring settings saved");
     } catch { toast.error("Failed to save scoring"); }

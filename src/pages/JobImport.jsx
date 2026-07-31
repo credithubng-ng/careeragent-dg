@@ -1,14 +1,15 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { base44 } from "@/api/base44Client";
 import { useCollection } from "@/lib/entityHooks";
 import { PageHeader, SectionCard } from "@/components/ui-kit";
 import { extractJobFromText } from "@/lib/careerAI";
-import { todayISO } from "@/lib/format";
-import { Sparkles, Save, ArrowLeft, AlertCircle } from "lucide-react";
+import { todayISO, daysUntil } from "@/lib/format";
+import { Sparkles, Save, ArrowLeft, AlertCircle, AlertTriangle } from "lucide-react";
 import { toast } from "react-hot-toast";
-import { createOwnedRecord } from "@/lib/ownedEntities";
+import { listOwnedRecords, createOwnedRecord } from "@/lib/ownedEntities";
 import { findDuplicateJob, normaliseJobPayload, validateJob } from "@/lib/jobCapture";
+
+const MAX_JOB_TEXT = 15000;
 
 const SELECT_OPTIONS = {
   employment_type: ["", "Permanent", "Contract", "Interim", "Fixed Term", "Part-time"],
@@ -31,8 +32,8 @@ const LONG_FIELDS = new Set([
 
 export default function JobImport() {
   const navigate = useNavigate();
-  const { data: candidates } = useCollection("Candidate", () => base44.entities.Candidate.list());
-  const { data: jobs } = useCollection("Job", () => base44.entities.Job.list("-created_date", 500));
+  const { data: candidates } = useCollection("Candidate", () => listOwnedRecords("Candidate", {}, "-created_date", 5));
+  const { data: jobs } = useCollection("Job", () => listOwnedRecords("Job", {}, "-created_date", 500));
   const [text, setText] = useState("");
   const [extracting, setExtracting] = useState(false);
   const [review, setReview] = useState(null);
@@ -43,6 +44,10 @@ export default function JobImport() {
     if (!text.trim()) { toast.error("Paste a job description first"); return; }
     if (text.trim().length < 100) {
       toast.error("Paste the full job advert so the details can be extracted reliably.");
+      return;
+    }
+    if (text.trim().length > MAX_JOB_TEXT) {
+      toast.error(`The job text is too long (max ${MAX_JOB_TEXT.toLocaleString()} characters). Trim it and try again.`);
       return;
     }
     setExtracting(true);
@@ -137,6 +142,18 @@ export default function JobImport() {
           <p className="text-xs text-muted-foreground">
             Job title is required. Enter either an employer or a recruitment agency.
           </p>
+          {review.closing_date && daysUntil(review.closing_date) < 0 && (
+            <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>This job's closing date has already passed. Verify before saving.</span>
+            </div>
+          )}
+          {!review.employer?.trim() && !review.recruitment_agency?.trim() && (
+            <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+              <span>No employer or recruitment agency was detected. Add one before saving.</span>
+            </div>
+          )}
           {saveError && (
             <div role="alert" className="flex items-start gap-2 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
               <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />

@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
 import { base44 } from "@/api/base44Client";
 import {
   LayoutDashboard, ListTodo, Briefcase, Send, Wand2, CalendarDays,
-  FileText, User, Users, BarChart3, Database, Settings as SettingsIcon,
+  FileText, User, Users, BarChart3, TrendingUp, Database, Settings as SettingsIcon,
   Menu, X, LogOut,
 } from "lucide-react";
 
@@ -19,6 +19,7 @@ const NAV = [
   { label: "Candidate Profile", to: "/profile", icon: User },
   { label: "Contacts", to: "/contacts", icon: Users },
   { label: "Analytics", to: "/analytics", icon: BarChart3 },
+  { label: "Weekly Review", to: "/weekly-review", icon: TrendingUp },
   { label: "Job Sources", to: "/sources", icon: Database },
   { label: "Settings", to: "/settings", icon: SettingsIcon },
 ];
