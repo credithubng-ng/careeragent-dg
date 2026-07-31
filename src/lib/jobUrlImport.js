@@ -42,11 +42,12 @@ export const SUPPORTED_SOURCES = [
 ];
 
 export const MATCH_PROGRESS_STEPS = [
-  "Saving opportunity…",
+  "Retrieving job…",
+  "Extracting details…",
+  "Saving job…",
   "Running AI Match…",
-  "Analysing evidence…",
-  "Generating recommendation…",
-  "Completed.",
+  "Saving match result…",
+  "Complete",
 ];
 
 export const URL_IMPORT_TIMEOUT_MS = 60_000;

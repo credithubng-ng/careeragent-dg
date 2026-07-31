@@ -200,6 +200,7 @@ export default function JobDetail() {
     { label: "Apply", icon: Check, onClick: () => setStatus("Apply"), tone: "green" },
     { label: "Maybe", icon: HelpCircle, onClick: () => setStatus("Maybe"), tone: "amber" },
     { label: "Skip", icon: X, onClick: () => setStatus("Skip"), tone: "slate" },
+    { label: "Analyse Job Match", icon: Sparkles, onClick: runMatch, tone: "primary" },
     { label: "Generate Application Pack", icon: Wand2, onClick: generatePack, tone: "primary" },
     { label: "Add Follow-Up", icon: Plus, onClick: addFollowUp, tone: "blue" },
     { label: "Add Interview", icon: CalendarPlus, onClick: addInterview, tone: "violet" },

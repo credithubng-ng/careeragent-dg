@@ -47,6 +47,7 @@ export default function JobImport() {
   const [duplicate, setDuplicate] = useState(null);
   const [saveError, setSaveError] = useState("");
   const cancelRef = useRef(false);
+  const savedJobIdRef = useRef(null);
 
   const { data: candidates, loading: candidatesLoading } = useCollection(
     "Candidate", () => listOwnedRecords("Candidate")
@@ -108,7 +109,9 @@ export default function JobImport() {
   async function saveAndMatch(payload, existingJob) {
     setSaving(true);
     cancelRef.current = false;
-    setMatchStep(0);
+    savedJobIdRef.current = null;
+    // Steps 0-1 (Retrieving, Extracting) already completed in the import tab.
+    setMatchStep(2); // "Saving job…"
 
     try {
       const candidate = candidates[0];
@@ -129,6 +132,9 @@ export default function JobImport() {
         savedJob = await createOwnedRecord("Job", jobData);
       }
 
+      // Track the saved job id so Cancel knows the job exists.
+      savedJobIdRef.current = savedJob.id;
+
       base44.analytics.track({
         eventName: "job_import_saved",
         properties: { import_method: importMethod, extraction_status: extractionStatus },
@@ -144,7 +150,7 @@ export default function JobImport() {
 
       if (cancelRef.current) return;
 
-      setMatchStep(1);
+      setMatchStep(3); // "Running AI Match…"
       const result = await withTimeout(
         analyseJobMatch(savedJob, candidate, cvs, scoringSettings[0]),
         MATCH_TIMEOUT_MS,
@@ -153,28 +159,33 @@ export default function JobImport() {
 
       if (cancelRef.current) return;
 
-      setMatchStep(2);
+      setMatchStep(4); // "Saving match result…"
       await createOwnedRecord("JobMatch", {
         candidate_id: candidate.id,
         job_id: savedJob.id,
         ...result,
       });
 
-      setMatchStep(3);
-      await base44.entities.Job.update(savedJob.id, {
+      await updateOwnedRecord("Job", savedJob.id, {
         match_score: result.total_score,
         recommendation: result.recommendation,
         last_match_date: new Date().toISOString(),
       });
 
-      setMatchStep(4);
+      setMatchStep(5); // "Complete"
       toast.success("Job imported and match analysis completed");
       navigate(`/jobs/${savedJob.id}`);
     } catch (error) {
       setMatchStep(-1);
       const message = error?.message || "Unable to complete the import.";
-      setSaveError(message);
-      toast.error(message);
+      if (savedJobIdRef.current) {
+        // Job was saved — redirect to the job page so the user can retry match there.
+        toast.error(message);
+        navigate(`/jobs/${savedJobIdRef.current}`);
+      } else {
+        setSaveError(message);
+        toast.error(message);
+      }
     } finally {
       setSaving(false);
     }
@@ -201,9 +212,17 @@ export default function JobImport() {
 
   function handleCancel() {
     cancelRef.current = true;
+    const savedId = savedJobIdRef.current;
     setMatchStep(-1);
     setSaving(false);
-    toast("Import cancelled. The job was not saved.");
+    if (savedId) {
+      // Job already saved — cancel only the remaining match analysis.
+      toast("Match analysis cancelled. The job has been saved and can be analysed later from the Job Review page.");
+      navigate(`/jobs/${savedId}`);
+    } else {
+      // Job not yet saved — cancel the whole import.
+      toast("Import cancelled. The job was not saved.");
+    }
   }
 
   if (candidatesLoading || cvsLoading) {
