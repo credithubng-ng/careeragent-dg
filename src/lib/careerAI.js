@@ -300,7 +300,7 @@ function normaliseMatchResult(result, contextData, weights) {
 export async function extractJobFromText(text) {
   const today = new Date().toISOString().slice(0, 10);
   const res = await base44.integrations.Core.InvokeLLM({
-    prompt: `You are a job-description extraction engine for UK Data Governance roles. Extract only facts stated in the following job advert. Leave unknown fields empty ("" or 0); do not infer missing employer, salary, dates, requirements or contact details. Parse salary ranges into numeric min/max without converting currencies. Use YYYY-MM-DD for dates. Set work_arrangement and employment_type only to one of the schema values. Identify the stated sector where possible.\n\nToday: ${today}\n\nJOB TEXT:\n${text}`,
+    prompt: `You are a job-description extraction engine for UK Data Governance roles. The text below has been isolated from a recruitment webpage to contain only the primary vacancy. Extract only facts stated in the text that belong to the primary vacancy. If the text appears to contain multiple job vacancies, set ambiguity_warning to true and extract only the primary vacancy (the one matching the page title or main heading). Do not merge requirements from different vacancies. Leave unknown fields empty ("" or 0); do not infer missing employer, salary, dates, requirements or contact details. Parse salary ranges into numeric min/max without converting currencies. Use YYYY-MM-DD for dates. Set work_arrangement and employment_type only to one of the schema values. Identify the stated sector where possible. Set extraction_confidence to "High", "Medium", or "Low" based on how complete and coherent the extraction is.\n\nToday: ${today}\n\nJOB TEXT:\n${text}`,
     response_json_schema: {
       type: "object",
       properties: {
@@ -341,6 +341,11 @@ export async function extractJobFromText(text) {
         contact_person: { type: "string" },
         contact_email: { type: "string" },
         sector: { type: "string" },
+        extraction_confidence: {
+          type: "string",
+          enum: ["High", "Medium", "Low"],
+        },
+        ambiguity_warning: { type: "boolean" },
       },
     },
   });

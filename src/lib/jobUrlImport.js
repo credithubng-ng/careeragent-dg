@@ -1,6 +1,11 @@
 import { base44 } from "@/api/base44Client";
 import { extractJobFromText } from "./careerAI";
 import { extractDocxText } from "./docxExtract";
+import {
+  mergeExtraction,
+  validateJobCoherence,
+  assessConfidence,
+} from "./jobExtraction";
 
 export function validateJobUrl(url) {
   if (!url || typeof url !== "string" || !url.trim()) {
@@ -77,14 +82,43 @@ export async function importJobFromUrl(url, onProgress) {
   }
 
   if (onProgress) onProgress("extract");
-  const extracted = await extractJobFromText(pageData.content);
+  const aiFields = await extractJobFromText(pageData.content);
+
+  // Merge structured JobPosting data (takes priority) with AI-extracted fields
+  const structuredData = pageData.structured_data || null;
+  const merged = mergeExtraction(aiFields, structuredData);
+
+  // Use the isolated content as the job description (not the raw page text)
+  const jobDescription = pageData.content;
+
+  // Run coherence validation against the raw page content
+  const { warnings, contaminated } = validateJobCoherence(merged, pageData.raw_content || pageData.content);
+
+  // Assess extraction confidence
+  const confidence = assessConfidence(
+    pageData.extraction_source,
+    merged,
+    contaminated
+  );
 
   return {
-    ...extracted,
-    job_description: pageData.content,
+    ...merged,
+    job_description: jobDescription,
     original_job_url: trimmedUrl,
     page_title: pageData.page_title || "",
     final_url: pageData.final_url || trimmedUrl,
+    _extractionMeta: {
+      source: pageData.extraction_source || "generic_text",
+      adapterUsed: pageData.adapter_used || null,
+      confidence,
+      contaminated,
+      coherenceWarnings: warnings,
+      relatedJobsDetected: pageData.related_jobs_detected || 0,
+      sectionsIgnored: pageData.sections_ignored || 0,
+      multipleJobpostings: pageData.multiple_jobpostings || false,
+      jobpostingCount: pageData.jobposting_count || 0,
+      rawContent: pageData.raw_content || "",
+    },
   };
 }
 

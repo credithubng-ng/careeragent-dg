@@ -8,6 +8,7 @@ import { normaliseJobPayload, validateJob, findDuplicateJob } from "@/lib/jobCap
 import { analyseJobMatch, getUsableCandidateCVs } from "@/lib/careerAI";
 import { base44 } from "@/api/base44Client";
 import { computeExtractionStatus, MATCH_PROGRESS_STEPS } from "@/lib/jobUrlImport";
+import { shouldBlockMatching } from "@/lib/jobExtraction";
 import UrlImportTab from "@/components/job-import/UrlImportTab";
 import PasteImportTab from "@/components/job-import/PasteImportTab";
 import PdfImportTab from "@/components/job-import/PdfImportTab";
@@ -46,6 +47,7 @@ export default function JobImport() {
   const [matchStep, setMatchStep] = useState(-1);
   const [duplicate, setDuplicate] = useState(null);
   const [saveError, setSaveError] = useState("");
+  const [extractionMeta, setExtractionMeta] = useState(null);
   const cancelRef = useRef(false);
   const savedJobIdRef = useRef(null);
 
@@ -63,12 +65,14 @@ export default function JobImport() {
   );
 
   function handleExtracted(data, method, extractionMethodName) {
+    const { _extractionMeta, ...fields } = data;
     setReview({
-      ...data,
-      date_discovered: data.date_discovered || todayISO(),
-      currency: data.currency || "GBP",
+      ...fields,
+      date_discovered: fields.date_discovered || todayISO(),
+      currency: fields.currency || "GBP",
       job_status: "New",
     });
+    setExtractionMeta(_extractionMeta || null);
     setImportMethod(method);
     setExtractionMethod(extractionMethodName);
     setSaveError("");
@@ -84,6 +88,7 @@ export default function JobImport() {
 
   function handleBackToTabs() {
     setReview(null);
+    setExtractionMeta(null);
     setSaveError("");
   }
 
@@ -144,6 +149,21 @@ export default function JobImport() {
       if (!candidate || usableCVs.length === 0) {
         setMatchStep(-1);
         toast.success("Job saved. Add a candidate profile and CV to enable AI matching.");
+        navigate(`/jobs/${savedJob.id}`);
+        return;
+      }
+
+      // Matching safeguard: don't auto-match if extraction is contaminated or low confidence
+      const blockMatching = shouldBlockMatching(
+        payload,
+        extractionMeta?.confidence,
+        extractionMeta?.contaminated
+      );
+      if (blockMatching) {
+        setMatchStep(-1);
+        toast.success(
+          "Job saved. Please review the extracted vacancy and run match analysis from the job page."
+        );
         navigate(`/jobs/${savedJob.id}`);
         return;
       }
@@ -285,6 +305,7 @@ export default function JobImport() {
           saving={saving || showProgress}
           saveError={saveError}
           importMethod={importMethod}
+          extractionMeta={extractionMeta}
         />
       )}
 

@@ -1,7 +1,8 @@
 import React from "react";
 import { cn } from "@/lib/utils";
 import { todayISO, daysUntil } from "@/lib/format";
-import { Save, Loader2, ArrowLeft, AlertTriangle, AlertCircle } from "lucide-react";
+import { Save, Loader2, ArrowLeft, AlertTriangle, AlertCircle, Sparkles, ShieldAlert } from "lucide-react";
+import ExtractionDiagnostics from "./ExtractionDiagnostics";
 
 const SELECT_OPTIONS = {
   employment_type: ["", "Permanent", "Contract", "Interim", "Fixed Term", "Part-time"],
@@ -51,11 +52,17 @@ export default function JobReviewForm({
   saving,
   saveError,
   importMethod,
+  extractionMeta,
 }) {
   const shortFields = SHORT_FIELD_ORDER.filter((key) => key in review);
   const longFields = [...LONG_FIELDS].filter((key) => key in review);
   const hasEmployer = !isFieldEmpty(review.employer) || !isFieldEmpty(review.recruitment_agency);
   const closeDays = review.closing_date ? daysUntil(review.closing_date) : null;
+
+  const isContaminated = extractionMeta?.contaminated;
+  const isLowConfidence = extractionMeta?.confidence === "Low";
+  const showContaminationWarning = isContaminated || isLowConfidence;
+  const saveButtonLabel = showContaminationWarning ? "Save Only (Review Required)" : "Save & Run Match";
 
   function handleFieldChange(key, value) {
     onChange({ ...review, [key]: value });
@@ -145,6 +152,63 @@ export default function JobReviewForm({
         </button>
       </div>
 
+      {/* Extraction source and confidence badge */}
+      {extractionMeta && (
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          {extractionMeta.source && (
+            <span className="inline-flex items-center gap-1 rounded-full border border-border bg-muted/50 px-2.5 py-1 font-medium text-foreground">
+              <Sparkles className="h-3 w-3 text-muted-foreground" />
+              {extractionMeta.source === "structured_jobposting"
+                ? "Structured JobPosting"
+                : extractionMeta.source === "website_adapter"
+                  ? `Website Adapter${extractionMeta.adapterUsed ? ` · ${extractionMeta.adapterUsed}` : ""}`
+                  : "Generic Page Extraction"}
+            </span>
+          )}
+          {extractionMeta.confidence && (
+            <span
+              className={cn(
+                "inline-flex items-center rounded-full border px-2.5 py-1 font-medium",
+                extractionMeta.confidence === "High"
+                  ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                  : extractionMeta.confidence === "Medium"
+                    ? "border-amber-200 bg-amber-50 text-amber-700"
+                    : "border-rose-200 bg-rose-50 text-rose-700"
+              )}
+            >
+              Confidence: {extractionMeta.confidence}
+            </span>
+          )}
+          {extractionMeta.relatedJobsDetected > 0 && (
+            <span className="inline-flex items-center rounded-full border border-border bg-muted/50 px-2.5 py-1 text-muted-foreground">
+              {extractionMeta.relatedJobsDetected} related-jobs section{extractionMeta.relatedJobsDetected === 1 ? "" : "s"} removed
+            </span>
+          )}
+          {extractionMeta.sectionsIgnored > 0 && (
+            <span className="inline-flex items-center rounded-full border border-border bg-muted/50 px-2.5 py-1 text-muted-foreground">
+              {extractionMeta.sectionsIgnored} unrelated section{extractionMeta.sectionsIgnored === 1 ? "" : "s"} ignored
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* Contamination warning */}
+      {showContaminationWarning && (
+        <div className="flex items-start gap-2 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+          <ShieldAlert className="mt-0.5 h-4 w-4 shrink-0" />
+          <div>
+            <p className="font-medium">
+              {isContaminated
+                ? "Multiple vacancies may have been detected on this page. Please review the isolated vacancy before continuing."
+                : "Extraction confidence is low. Please review the extracted details carefully before continuing."}
+            </p>
+            <p className="mt-1 text-rose-700">
+              AI Match will not run automatically. Save the job and run match analysis manually from the job page after reviewing.
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className="rounded-xl border border-border bg-card p-5 shadow-sm">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {shortFields.map(renderShortField)}
@@ -187,10 +251,25 @@ export default function JobReviewForm({
             className="inline-flex items-center gap-2 rounded-lg bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 disabled:opacity-50"
           >
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-            {saving ? "Saving & Matching…" : "Save & Run Match"}
+            {saving ? "Saving…" : saveButtonLabel}
           </button>
         </div>
       </div>
+
+      {/* Extraction diagnostics — expandable raw text preview */}
+      {extractionMeta && (
+        <ExtractionDiagnostics
+          extractionSource={extractionMeta.source}
+          adapterUsed={extractionMeta.adapterUsed}
+          confidence={extractionMeta.confidence}
+          relatedJobsDetected={extractionMeta.relatedJobsDetected}
+          sectionsIgnored={extractionMeta.sectionsIgnored}
+          multipleJobpostings={extractionMeta.multipleJobpostings}
+          jobpostingCount={extractionMeta.jobpostingCount}
+          rawContent={extractionMeta.rawContent}
+          coherenceWarnings={extractionMeta.coherenceWarnings}
+        />
+      )}
     </div>
   );
 }
