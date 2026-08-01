@@ -2,7 +2,7 @@ import React, { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useCollection } from "@/lib/entityHooks";
 import { PageHeader, SectionCard, Loading, EmptyState, StatusBadge, ScoreBadge } from "@/components/ui-kit";
-import { ukDate, daysUntil, gbp } from "@/lib/format";
+import { ukDate, daysUntil, formatSalary } from "@/lib/format";
 import { Plus, Upload, Search, Filter, ExternalLink, Briefcase } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { listOwnedRecords } from "@/lib/ownedEntities";
@@ -100,7 +100,7 @@ export default function Jobs() {
                   {j.location && <span>📍 {j.location}</span>}
                   {j.work_arrangement && <span>{j.work_arrangement}</span>}
                   {j.employment_type && <span>{j.employment_type}</span>}
-                  {(j.salary_min || j.salary_max) && <span>{gbp(j.salary_min)}{j.salary_max ? `–${gbp(j.salary_max)}` : ""}</span>}
+                  <span>{formatSalary(j)}</span>
                   {j.closing_date && <span className={cn(d != null && d <= 3 ? "text-rose-600 font-medium" : "")}>Closes {ukDate(j.closing_date)}</span>}
                 </div>
                 <div className="flex items-center justify-between mt-3 pt-3 border-t border-border">

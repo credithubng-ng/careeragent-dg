@@ -9,6 +9,7 @@ import {
   extractVacanciesFromEmail,
 } from "../../shared/emailParsers.ts";
 import { filterRelevance } from "../../shared/relevanceFilter.ts";
+import { runJobMatch } from "../../shared/jobMatching.ts";
 
 const GMAIL_API = "https://gmail.googleapis.com/gmail/v1/users/me";
 const CONNECTOR_ID = "6a6dbe19898b53557d5ea634";
@@ -104,6 +105,10 @@ export default async function(req: Request): Promise<Response> {
     // Get existing data for duplicate detection
     const existingJobs = await base44.asServiceRole.entities.Job.list("-created_date", 500);
     const existingEmailImports = await base44.asServiceRole.entities.EmailImport.list("-created_date", 200);
+    const allCVs = await base44.asServiceRole.entities.CV.list();
+    const usableCVs = allCVs.filter((cv: any) => cv.processing_status === "Ready" && cv.extracted_cv_text?.trim());
+    const scoringSettings = await base44.asServiceRole.entities.ScoringSetting.list();
+    const scoring = scoringSettings.find((s: any) => s.active_status) || scoringSettings[0];
 
     let jobsImported = 0;
     let duplicatesSkipped = 0;
@@ -217,6 +222,29 @@ export default async function(req: Request): Promise<Response> {
           existingJobs.push(created);
           emailJobsImported++;
           jobsImported++;
+
+          // Automatic AI scoring — no manual "Save Scoring" needed
+          try {
+            if (candidate && usableCVs.length > 0) {
+              const matchResult = await runJobMatch(
+                created, candidate, usableCVs, scoring,
+                (params: any) => base44.asServiceRole.integrations.Core.InvokeLLM(params)
+              );
+              await base44.asServiceRole.entities.JobMatch.create({
+                owner_email: ownerEmail,
+                candidate_id: candidate.id,
+                job_id: created.id,
+                ...matchResult,
+              });
+              await base44.asServiceRole.entities.Job.update(created.id, {
+                match_score: matchResult.total_score,
+                recommendation: matchResult.recommendation,
+                last_match_date: new Date().toISOString(),
+              });
+            }
+          } catch (matchError: any) {
+            errors.push(`Match failed for job ${created.id}: ${matchError.message}`);
+          }
         }
 
         // Create EmailImport record (replaces the "Processed" label for deduplication)

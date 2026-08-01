@@ -103,10 +103,15 @@ export default function Dashboard() {
     const followUpsDue = applications.filter((a) => a.follow_up_date && a.follow_up_date <= today && !["Offer", "Rejected", "Withdrawn"].includes(a.stage)).length;
     const awaitingAction = applications.filter((a) => ["Preparing", "Ready to Apply"].includes(a.stage)).length;
     const interviewPrepThisWeek = interviews.filter((iv) => iv.preparation_status && iv.preparation_status !== "Not Started" && iv.created_date && new Date(iv.created_date) >= ws).length;
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const jobsImportedToday = jobs.filter((j) => j.created_date && j.created_date.slice(0, 10) === todayStr).length;
+    const highMatches = jobs.filter((j) => j.match_score != null && j.match_score >= 80).length;
+    const pendingReview = jobs.filter((j) => j.job_status === "New" || j.email_import_status === "Needs Review").length;
     return {
       newJobs, jobsReviewed, jobsReviewedThisWeek, strongFit, submitted, submittedThisWeek,
       recruiterContacts, recruiterContactsThisWeek, interviewCount, offers, avgScore,
       appsToInterview, followUpsDue, awaitingAction, interviewPrepThisWeek,
+      jobsImportedToday, highMatches, pendingReview,
     };
   }, [jobs, applications, interviews, contacts]);
 
@@ -256,10 +261,10 @@ export default function Dashboard() {
 
       {/* Quick stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <StatCard label="New Jobs" value={stats.newJobs} icon={Briefcase} accent="blue" />
-        <StatCard label="High Priority" value={jobs.filter((j) => j.job_status === "High Priority").length} icon={Flame} accent="violet" />
-        <StatCard label="In Preparation" value={stats.awaitingAction} icon={Target} accent="amber" />
-        <StatCard label="Apps (7 days)" value={stats.submittedThisWeek} icon={Send} accent="primary" />
+        <StatCard label="Imported Today" value={stats.jobsImportedToday} icon={Briefcase} accent="blue" />
+        <StatCard label="High Matches" value={stats.highMatches} hint="Score ≥ 80" icon={Flame} accent="green" />
+        <StatCard label="Pending Review" value={stats.pendingReview} icon={Target} accent="amber" />
+        <StatCard label="Avg Match Score" value={stats.avgScore || "—"} icon={TrendingUp} accent="primary" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
