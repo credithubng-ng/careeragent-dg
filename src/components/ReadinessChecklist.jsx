@@ -81,7 +81,7 @@ export default function ReadinessChecklist({
     { label: "Tailored profile generated", done: Boolean(tailoredProfile), mandatory: false },
     { label: "CV improvement recommendations reviewed", done: Boolean(cvImprovement), mandatory: false },
     { label: "Cover letter or supporting statement generated", done: Boolean(coverLetter || supportingStatement), mandatory: false },
-    { label: "Evidence reviewed by candidate", done: evidenceReviewed, mandatory: false },
+    { label: "Evidence reviewed by me", done: evidenceReviewed, mandatory: false },
     { label: "Application questions answered", done: questionDocs.length > 0, mandatory: false },
     { label: "At least one core document approved", done: coreDocApproved, mandatory: true },
     { label: deadlineLabel, done: deadlineChecked, mandatory: true },

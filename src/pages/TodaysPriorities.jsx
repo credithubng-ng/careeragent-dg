@@ -263,7 +263,7 @@ export default function TodaysPriorities() {
 
       {!candidate && (
         <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-          You need a Candidate Profile to power AI matching. <Link to="/profile" className="font-medium underline">Create your profile</Link>.
+          You need a profile to power AI matching. <Link to="/profile" className="font-medium underline">Create your profile</Link>.
         </div>
       )}
 

@@ -138,7 +138,7 @@ export default function JobDetail() {
       return;
     }
     const candidate = candidates[0];
-    if (!candidate) { toast.error("Create a candidate profile first"); return; }
+    if (!candidate) { toast.error("Create your profile first"); return; }
     if (getUsableCandidateCVs(cvs).length === 0) {
       toast.error("Upload and process a Master CV before running match analysis.");
       return;
@@ -290,7 +290,7 @@ export default function JobDetail() {
           {/* Match analysis */}
           <SectionCard
             title="AI Match Analysis"
-            description="Positive match claims are shown only when their evidence can be verified in your Candidate Profile or Master CV."
+            description="Positive match claims are shown only when their evidence can be verified in your profile or Master CV."
             actions={<button onClick={runMatch} disabled={matching} className="inline-flex items-center gap-1.5 rounded-lg bg-primary text-primary-foreground px-3 py-1.5 text-sm font-medium hover:bg-primary/90 disabled:opacity-50"><Sparkles className="h-3.5 w-3.5" /> {matching ? "Analysing…" : match ? "Run Again" : "Run Analysis"}</button>}
           >
             {match ? (
@@ -397,7 +397,7 @@ export default function JobDetail() {
             </SectionCard>
           )}
 
-          <SectionCard title="Candidate Notes">
+          <SectionCard title="My Notes">
             <textarea
               defaultValue={job.candidate_notes || ""}
               onBlur={async (e) => { await base44.entities.Job.update(id, { candidate_notes: e.target.value }); }}

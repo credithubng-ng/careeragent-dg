@@ -17,7 +17,7 @@ const NAV = [
   { label: "Application Studio", to: "/studio", icon: Wand2 },
   { label: "Interviews", to: "/interviews", icon: CalendarDays },
   { label: "CV Library", to: "/cv", icon: FileText },
-  { label: "Candidate Profile", to: "/profile", icon: User },
+  { label: "My Profile", to: "/profile", icon: User },
   { label: "Contacts", to: "/contacts", icon: Users },
   { label: "Analytics", to: "/analytics", icon: BarChart3 },
   { label: "Weekly Review", to: "/weekly-review", icon: TrendingUp },

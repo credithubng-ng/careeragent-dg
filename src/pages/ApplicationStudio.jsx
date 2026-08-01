@@ -188,11 +188,11 @@ export default function ApplicationStudio() {
 
   async function generate(section, questionText) {
     if (candidatesLoading || cvsLoading) {
-      toast.error("Your Candidate Profile and Master CV are still loading.");
+      toast.error("Your profile and Master CV are still loading.");
       return;
     }
     const candidate = candidates[0];
-    if (!candidate) { toast.error("Create a candidate profile first"); return; }
+    if (!candidate) { toast.error("Create your profile first"); return; }
     const master = cvs.find((c) =>
       c.is_master && c.processing_status === "Ready" && c.extracted_cv_text?.trim()
     );
@@ -303,7 +303,7 @@ export default function ApplicationStudio() {
           (cv) => cv.is_master && cv.processing_status === "Ready" && cv.extracted_cv_text?.trim()
         );
         if (!candidate || !master) {
-          toast.error("A Candidate Profile and processed Master CV are required.");
+          toast.error("Your profile and a processed Master CV are required.");
           return;
         }
         trackedApplication = await ensureApplication(candidate, master);
@@ -440,7 +440,7 @@ export default function ApplicationStudio() {
     <div>
       <Link to={`/jobs/${jobId}`} className="text-sm text-muted-foreground hover:text-foreground">← {selectedJob.job_title}</Link>
       <PageHeader title="Application Studio" subtitle={`${selectedJob.job_title} — ${selectedJob.employer}`} />
-      <Notice tone="amber">AI drafts use your verified match evidence, Candidate Profile and Master CV. Review and approve every document before use.</Notice>
+      <Notice tone="amber">AI drafts use your verified match evidence, profile and Master CV. Review and approve every document before use.</Notice>
       {!match && (
         <Notice tone="rose">Run AI Match Analysis for this job before generating application content.</Notice>
       )}

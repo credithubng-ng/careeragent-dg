@@ -1,5 +1,6 @@
 // Shared job matching logic — usable in both frontend (careerAI.js) and backend (processGmailAlerts).
 // The invokeLLM parameter abstracts the difference between frontend and backend SDK calls.
+import { getPersonaConfig } from "./persona.ts";
 
 export const DEFAULT_WEIGHTS = {
   weight_experience: 25,
@@ -13,12 +14,12 @@ export const DEFAULT_WEIGHTS = {
 };
 
 export const DEFAULT_HARD_STOPS = [
-  "Candidate does not have the required right to work",
+  "I do not have the required right to work",
   "Mandatory security clearance cannot be obtained",
-  "Salary is materially below the candidate's minimum",
-  "Location is outside the accepted area and remote work is unavailable",
+  "Salary is materially below my minimum",
+  "Location is outside my accepted area and remote work is unavailable",
   "Role is primarily technical data engineering rather than Data Governance",
-  "Role requires a mandatory qualification the candidate does not possess",
+  "Role requires a mandatory qualification I do not possess",
   "Job is expired",
 ];
 
@@ -263,7 +264,7 @@ function determineCategoryStatus(
   }
 
   // Requirement stated but no verified evidence → Gap
-  return { status: "Gap", score: 0, maximum, requirement, explanation: explanation || "The requirement is clear but the candidate lacks verified evidence.", pointsWithheldReason: "No verified candidate evidence for this requirement.", unresolvedQuestion };
+  return { status: "Gap", score: 0, maximum, requirement, explanation: explanation || "The requirement is clear but I lack verified evidence.", pointsWithheldReason: "No verified evidence for this requirement.", unresolvedQuestion };
 }
 
 function normaliseMatchResult(
@@ -455,7 +456,9 @@ export async function runJobMatch(
   const weights = resolveScoringWeights(scoring);
 
   const res = await invokeLLM({
-    prompt: `You are a specialist Data Governance career matching engine. Evaluate how well the candidate matches the job. Be strictly evidence-based: NEVER claim the candidate has a skill, qualification or experience that is not present in the candidate profile or master CV. For every positive claim, copy a short evidence phrase from the named source and assign the scoring category it supports. Prefer an exact quotation and do not introduce facts that are absent from the source. If no supporting phrase exists, do not make the positive claim.
+    prompt: `${getPersonaConfig().perspectiveInstruction}
+
+You are a specialist Data Governance career matching engine. Evaluate how well I match the job. Be strictly evidence-based: NEVER claim I have a skill, qualification or experience that is not present in my profile or master CV. For every positive claim, copy a short evidence phrase from the named source and assign the scoring category it supports. Prefer an exact quotation and do not introduce facts that are absent from the source. If no supporting phrase exists, do not make the positive claim.
 
 Distinguish genuine Data Governance roles from roles that are primarily data engineering, software engineering, BI development, data science, ML or database administration. Related technical roles should score lower unless governance/quality/controls/stewardship/metadata/regulatory/leadership responsibilities are substantial.
 
@@ -466,7 +469,7 @@ For EACH of the 8 scoring categories, return a category_analysis entry with:
 - category: the scoring category key
 - requirement: the specific requirement stated in the job (or empty if not stated)
 - requirement_stated: true if the job mentions a requirement in this category, false if it does not
-- preliminary_status: one of "Verified" (candidate meets the requirement with evidence), "Partially Verified" (some but not all), "Gap" (requirement clear but candidate lacks evidence), "Requirement Not Stated" (job does not mention this), "Insufficient Job Information" (extracted vacancy too incomplete to determine), "Not Applicable" (genuinely does not apply)
+- preliminary_status: one of "Verified" (I meet the requirement with evidence), "Partially Verified" (some but not all), "Gap" (requirement clear but I lack evidence), "Requirement Not Stated" (job does not mention this), "Insufficient Job Information" (extracted vacancy too incomplete to determine), "Not Applicable" (genuinely does not apply)
 - explanation: brief explanation of the assessment
 - points_withheld_reason: why points were withheld if applicable
 - unresolved_question: any material question that must be resolved before a final assessment
@@ -477,11 +480,11 @@ Also return strong_matches, partial_matches, and transferable_matches with evide
 Apply hard-stop rules where relevant (flag in hard_stops, do not delete the job). Hard stops include:
 ${JSON.stringify(DEFAULT_HARD_STOPS)}
 
-For missing_requirements list only requirements the available evidence shows the candidate lacks. Put unknowns in questions instead. Suggested CV must be the supplied master CV name. Suggested deadline should be the closing date if known else within 7 days.
+For missing_requirements list only requirements the available evidence shows I lack. Put unknowns in questions instead. Suggested CV must be the supplied master CV name. Suggested deadline should be the closing date if known else within 7 days.
 
 IMPORTANT: If the job content is incomplete (short description, missing sections), use "Insufficient Job Information" for categories that cannot be assessed. Do not guess or infer requirements that are not stated in the job text.
 
-CANDIDATE:
+${getPersonaConfig().candidateDataLabel}:
 ${ctx}
 
 JOB:

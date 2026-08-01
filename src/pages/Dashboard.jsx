@@ -174,7 +174,7 @@ export default function Dashboard() {
         <PageHeader title="Dashboard" subtitle="Your 60-day Data Governance job-search campaign" />
         <EmptyState
           title="No campaign activity yet"
-          description="Import a job or add Angel's profile to begin. The dashboard will populate as you review jobs, run match analysis and submit applications."
+          description="Import a job or add your profile to begin. The dashboard will populate as you review jobs, run match analysis and submit applications."
           action={<Link to="/jobs/import" className="inline-flex items-center gap-2 rounded-lg bg-primary text-primary-foreground px-3 py-2 text-sm font-medium">Import a Job</Link>}
         />
       </div>

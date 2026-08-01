@@ -121,7 +121,7 @@ export function assessRightToWork(job, candidate) {
     // If silent about sponsorship, show a confirmation warning
     if (!saysUnavailable && !saysAvailable && !requiresCitizenship) {
       warnings.push(
-        "Right-to-work position requires confirmation — check whether sponsorship is available before applying"
+        "Right-to-work requires confirmation — check whether sponsorship is available before you apply"
       );
     }
   }
@@ -143,7 +143,7 @@ export function assessRightToWork(job, candidate) {
  *  - The match evidence is insufficient
  *  - The closing date has passed
  *  - The role is mainly technical data engineering
- *  - The salary is materially below Angel's minimum
+ *  - The salary is materially below my minimum
  *  - Right-to-work requirements cannot be met
  */
 export function rankOpportunity(job, match, candidate) {

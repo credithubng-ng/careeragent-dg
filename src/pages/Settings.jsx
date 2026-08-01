@@ -90,10 +90,10 @@ export default function Settings() {
 
         <SectionCard title="Safety & Accuracy" description="Core principles enforced throughout the application">
           <ul className="space-y-2 text-sm text-muted-foreground list-disc list-inside">
-            <li>The application never invents candidate experience or qualifications.</li>
-            <li>Employment dates, job titles and achievements are never altered without approval.</li>
-            <li>No automatic application submission — the candidate reviews and approves all content.</li>
-            <li>No unsolicited messages are sent without candidate approval.</li>
+            <li>The application never invents your experience or qualifications.</li>
+            <li>Employment dates, job titles and achievements are never altered without your approval.</li>
+            <li>No automatic application submission — you review and approve all content.</li>
+            <li>No unsolicited messages are sent without your approval.</li>
             <li>No unauthorised website scraping is performed.</li>
             <li>Match scores are decision-support only and do not guarantee employer interest.</li>
           </ul>

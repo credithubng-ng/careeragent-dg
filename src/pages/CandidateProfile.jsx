@@ -97,7 +97,7 @@ export default function CandidateProfile() {
 
   return (
     <div>
-      <PageHeader title="Candidate Profile" subtitle="Your professional profile powers match analysis and content generation"
+      <PageHeader title="My Profile" subtitle="Your professional profile powers match analysis and content generation"
         actions={<button onClick={save} disabled={saving} className="inline-flex items-center gap-2 rounded-lg bg-primary text-primary-foreground px-3 py-2 text-sm font-medium hover:bg-primary/90"><Save className="h-4 w-4" /> {saving ? "Saving…" : "Save Profile"}</button>} />
 
       <div className="space-y-6">

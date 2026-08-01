@@ -1,6 +1,7 @@
 import { base44 } from "@/api/base44Client";
 import { recommendationBand } from "./format";
 import { runJobMatch as sharedRunJobMatch } from "../../base44/shared/jobMatching.ts";
+import { getPersonaConfig } from "../../base44/shared/persona.ts";
 
 export const DEFAULT_WEIGHTS = {
   weight_experience: 25,
@@ -14,12 +15,12 @@ export const DEFAULT_WEIGHTS = {
 };
 
 export const DEFAULT_HARD_STOPS = [
-  "Candidate does not have the required right to work",
+  "I do not have the required right to work",
   "Mandatory security clearance cannot be obtained",
-  "Salary is materially below the candidate's minimum",
-  "Location is outside the accepted area and remote work is unavailable",
+  "Salary is materially below my minimum",
+  "Location is outside my accepted area and remote work is unavailable",
   "Role is primarily technical data engineering rather than Data Governance",
-  "Role requires a mandatory qualification the candidate does not possess",
+  "Role requires a mandatory qualification I do not possess",
   "Job is expired",
 ];
 
@@ -292,7 +293,7 @@ function normaliseMatchResult(result, contextData, weights) {
     application_priority: String(result?.application_priority || ""),
     suggested_deadline: String(result?.suggested_deadline || ""),
     recommended_action: !hasScore
-      ? "Review the Candidate Profile and Master CV evidence before making an application decision."
+      ? "Review my profile and Master CV evidence before making an application decision."
       : String(result?.recommended_action || ""),
     breakdown,
   };
@@ -373,14 +374,16 @@ export async function generateApplicationSection(section, job, candidate, cv, ma
     ...(match?.transferable_strengths || []),
   ];
   const sectionPrompts = {
-    "Tailored Profile": "a revised professional summary aligned with the job's requirements and the candidate's genuine experience. Use a clear heading and 2–3 well-structured paragraphs",
+    "Tailored Profile": "a revised professional summary aligned with the job's requirements and my genuine experience. Use a clear heading and 2–3 well-structured paragraphs",
     "CV Improvement": "CV improvement recommendations: keywords to include, experience to emphasise, achievements to move higher, skills that need clearer evidence, content less relevant, and suggested section ordering. Organise under clear subheadings with bullet points for each recommendation. Do NOT invent skills. Do NOT alter factual dates, job titles, employers or achievements.",
-    "Cover Letter": "a professional UK-style cover letter addressed to the hiring manager, drawing only on the candidate's genuine experience and the job requirements. Use a formal greeting, an opening paragraph expressing interest, 2–3 body paragraphs each focused on one theme with concrete evidence, and a professional closing. Format as a letter with the candidate's name at the end.",
+    "Cover Letter": "a professional UK-style cover letter addressed to the hiring manager, drawing only on my genuine experience and the job requirements. Use a formal greeting, an opening paragraph expressing interest, 2–3 body paragraphs each focused on one theme with concrete evidence, and a professional closing. Format as a letter with my name at the end.",
     "Supporting Statement": "a role-specific supporting statement addressing the essential requirements, evidence-based. Use a clear title, an introductory paragraph, then a subheading for each key requirement addressed with concrete evidence in the body. Include a brief closing paragraph.",
     "Recruiter Message": "a concise LinkedIn or email introduction to a recruiter or hiring manager expressing interest in the role. Use a professional subject line, a brief greeting, 1–2 short paragraphs and a sign-off.",
     "Application Question": "a direct, evidence-based answer to the supplied application question. Use 2–3 well-structured paragraphs with clear topic sentences and concrete supporting evidence.",
   };
-  const prompt = `You are a specialist career application writer for a senior Data Governance professional. Generate ${sectionPrompts[section] || section}. Write in British English.\n\nFORMATTING RULES:\n- Format the document using clean markdown so it reads as a polished, presentation-ready document.\n- Use markdown headings (## for sections, ### for subsections) to create a clear visual structure.\n- Use bullet points or numbered lists where the content is naturally a list (e.g. skills, achievements, recommendations).\n- Write flowing paragraphs for prose sections; avoid large unbroken walls of text.\n- Use **bold** sparingly to emphasise the candidate's key strengths or role-critical keywords.\n- Do NOT wrap the entire document in code blocks or fences.\n- Do NOT add horizontal rules between every paragraph — use headings to separate sections.\n- Ensure there is a blank line between paragraphs and around headings/lists for readability.\n\nGROUNDING RULES:\n- Use only candidate facts present in the Candidate Profile or Master CV below.\n- Prioritise the supplied VERIFIED MATCH EVIDENCE when aligning the draft to the job.\n- Never invent or infer experience, qualifications, employers, dates, achievements, metrics, technologies, responsibilities or sector exposure.\n- Do not present a missing requirement as a candidate strength.\n- Return every exact candidate-source phrase used to support a factual claim in evidence_quotes. These quotes are checked by the application before the draft is saved.\n\nCANDIDATE SOURCES:\n${JSON.stringify(candidateContext, null, 2)}\n\nVERIFIED MATCH EVIDENCE:\n${JSON.stringify(verifiedMatchEvidence, null, 2)}\n\nKNOWN GAPS OR QUESTIONS:\n${JSON.stringify({
+  const prompt = `${getPersonaConfig().perspectiveInstruction}
+
+You are a specialist career application writer for a senior Data Governance professional. Generate ${sectionPrompts[section] || section}. Write in British English.\n\nFORMATTING RULES:\n- Format the document using clean markdown so it reads as a polished, presentation-ready document.\n- Use markdown headings (## for sections, ### for subsections) to create a clear visual structure.\n- Use bullet points or numbered lists where the content is naturally a list (e.g. skills, achievements, recommendations).\n- Write flowing paragraphs for prose sections; avoid large unbroken walls of text.\n- Use **bold** sparingly to emphasise the candidate's key strengths or role-critical keywords.\n- Do NOT wrap the entire document in code blocks or fences.\n- Do NOT add horizontal rules between every paragraph — use headings to separate sections.\n- Ensure there is a blank line between paragraphs and around headings/lists for readability.\n\nGROUNDING RULES:\n- Use only my facts present in my Profile or Master CV below.\n- Prioritise the supplied VERIFIED MATCH EVIDENCE when aligning the draft to the job.\n- Never invent or infer experience, qualifications, employers, dates, achievements, metrics, technologies, responsibilities or sector exposure.\n- Do not present a missing requirement as my strength.\n- Return every exact source phrase used to support a factual claim in evidence_quotes. These quotes are checked by the application before the draft is saved.\n\nMY PROFILE & CV:\n${JSON.stringify(candidateContext, null, 2)}\n\nVERIFIED MATCH EVIDENCE:\n${JSON.stringify(verifiedMatchEvidence, null, 2)}\n\nKNOWN GAPS OR QUESTIONS:\n${JSON.stringify({
     missing_requirements: match?.missing_requirements || [],
     concerns: match?.concerns || [],
     questions: match?.questions || [],
@@ -420,7 +423,9 @@ export async function generateApplicationSection(section, job, candidate, cv, ma
 export async function generateInterviewQuestions(job, candidate) {
   const ctx = JSON.stringify({ candidate_profile: candidate });
   const res = await base44.integrations.Core.InvokeLLM({
-    prompt: `You are an interview preparation assistant for a senior Data Governance role. Based on the job description and candidate profile, generate 8 likely interview questions covering technical Data Governance knowledge, leadership, stakeholder management and behavioural/competency questions. Do not invent employer facts. Return as a JSON array of strings.\n\nCANDIDATE:\n${ctx}\n\nJOB:\n${JSON.stringify(job)}`,
+    prompt: `${getPersonaConfig().perspectiveInstruction}
+
+You are an interview preparation assistant for a senior Data Governance role. Based on the job description and my profile, generate 8 likely interview questions covering technical Data Governance knowledge, leadership, stakeholder management and behavioural/competency questions. Do not invent employer facts. Return as a JSON array of strings.\n\nMY PROFILE:\n${ctx}\n\nJOB:\n${JSON.stringify(job)}`,
     response_json_schema: { type: "object", properties: { questions: { type: "array", items: { type: "string" } } } },
   });
   return res?.questions || [];
