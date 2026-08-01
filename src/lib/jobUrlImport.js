@@ -7,6 +7,16 @@ import {
   assessConfidence,
 } from "./jobExtraction";
 
+export class RestrictedSourceError extends Error {
+  constructor(message, domain, originalUrl) {
+    super(message);
+    this.name = "RestrictedSourceError";
+    this.restrictedSource = true;
+    this.domain = domain;
+    this.originalUrl = originalUrl;
+  }
+}
+
 export function validateJobUrl(url) {
   if (!url || typeof url !== "string" || !url.trim()) {
     return "Enter a job URL.";
@@ -74,6 +84,14 @@ export async function importJobFromUrl(url, onProgress) {
       (typeof extractedError === "string" ? extractedError : extractedError?.error) ||
       invokeError?.message ||
       "Unable to retrieve the job page."
+    );
+  }
+
+  if (pageData && (pageData.status === "restricted" || pageData.restricted_source)) {
+    throw new RestrictedSourceError(
+      pageData.message || "This source restricts automatic job retrieval.",
+      pageData.domain || "",
+      pageData.original_url || trimmedUrl
     );
   }
 

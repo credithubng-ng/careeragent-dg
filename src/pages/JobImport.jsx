@@ -48,6 +48,7 @@ export default function JobImport() {
   const [duplicate, setDuplicate] = useState(null);
   const [saveError, setSaveError] = useState("");
   const [extractionMeta, setExtractionMeta] = useState(null);
+  const [fallbackContext, setFallbackContext] = useState(null);
   const cancelRef = useRef(false);
   const savedJobIdRef = useRef(null);
 
@@ -78,8 +79,11 @@ export default function JobImport() {
     setSaveError("");
   }
 
-  function handleFallback(targetTab) {
-    if (activeTab === "url") {
+  function handleFallback(targetTab, context) {
+    if (context?.restrictedSource) {
+      setFallbackContext(context);
+      setPreservedUrl(context.originalUrl || "");
+    } else if (activeTab === "url") {
       const urlInput = document.querySelector('input[type="url"]');
       if (urlInput) setPreservedUrl(urlInput.value);
     }
@@ -89,6 +93,7 @@ export default function JobImport() {
   function handleBackToTabs() {
     setReview(null);
     setExtractionMeta(null);
+    setFallbackContext(null);
     setSaveError("");
   }
 
@@ -264,7 +269,7 @@ export default function JobImport() {
             {TABS.map((tab) => (
               <button
                 key={tab.key}
-                onClick={() => setActiveTab(tab.key)}
+                onClick={() => { setFallbackContext(null); setActiveTab(tab.key); }}
                 className={cn(
                   "flex-1 inline-flex items-center justify-center gap-2 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
                   activeTab === tab.key
@@ -290,6 +295,7 @@ export default function JobImport() {
             <PasteImportTab
               onExtracted={handleExtracted}
               initialText={preservedText}
+              fallbackContext={fallbackContext}
             />
           )}
           {activeTab === "pdf" && (

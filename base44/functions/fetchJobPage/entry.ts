@@ -80,6 +80,78 @@ async function isUrlSafe(parsedUrl: URL): Promise<{ safe: boolean; reason?: stri
   return { safe: true };
 }
 
+// ─── Restricted Source Detection ───
+
+const RESTRICTED_DOMAINS = [
+  'linkedin.com',
+  'indeed.com',
+  'indeed.co.uk',
+  'glassdoor.com',
+  'glassdoor.co.uk',
+];
+
+const RESTRICTED_DOMAIN_MESSAGES: Record<string, string> = {
+  'linkedin.com': 'LinkedIn restricts automatic server-side job retrieval. Open the vacancy in LinkedIn, copy the full job description, and paste it below. The original URL has been preserved.',
+  'indeed.com': 'Indeed restricts automatic server-side job retrieval. Open the vacancy on Indeed, copy the full job description, and paste it below. The original URL has been preserved.',
+  'indeed.co.uk': 'Indeed restricts automatic server-side job retrieval. Open the vacancy on Indeed, copy the full job description, and paste it below. The original URL has been preserved.',
+  'glassdoor.com': 'Glassdoor restricts automatic server-side job retrieval. Open the vacancy on Glassdoor, copy the full job description, and paste it below. The original URL has been preserved.',
+  'glassdoor.co.uk': 'Glassdoor restricts automatic server-side job retrieval. Open the vacancy on Glassdoor, copy the full job description, and paste it below. The original URL has been preserved.',
+};
+
+const GENERIC_RESTRICTED_MESSAGE = 'This page could not be retrieved automatically — it may require authentication or use JavaScript rendering. Open the vacancy in your browser, copy the full job description, and paste it below. The original URL has been preserved.';
+
+function getRestrictedDomain(hostname: string): string | null {
+  const lower = hostname.toLowerCase().replace(/^www\./, '');
+  for (const domain of RESTRICTED_DOMAINS) {
+    if (lower === domain || lower.endsWith('.' + domain)) return domain;
+  }
+  return null;
+}
+
+const RESTRICTED_TITLE_INDICATORS = [
+  'sign in', 'log in', 'login', 'join linkedin', 'join now',
+  'authentication', 'access denied', 'captcha', 'security verification',
+  'verify you are human', 'are you a real person',
+];
+
+const RESTRICTED_CONTENT_INDICATORS = [
+  'sign in', 'join linkedin', 'join now', 'log in', 'login',
+  'authentication required', 'access denied', 'captcha',
+  'enable javascript', 'security verification',
+  'are you a real person', 'verify you are human',
+  'checking your browser', 'please enable javascript',
+  'cookie consent', 'we use cookies',
+];
+
+function isRestrictedContent(content: string, pageTitle: string): { restricted: boolean; reason: string } {
+  const titleLower = pageTitle.toLowerCase();
+
+  // Short content — likely a JavaScript shell or empty page
+  if (content.trim().length < 200) {
+    return { restricted: true, reason: 'incomplete' };
+  }
+
+  // Title-based detection (high confidence — login/challenge page titles)
+  for (const indicator of RESTRICTED_TITLE_INDICATORS) {
+    if (titleLower.includes(indicator)) {
+      return { restricted: true, reason: 'login_challenge' };
+    }
+  }
+
+  // Content-based detection (require multiple matches to avoid false positives
+  // — a real job description may mention "sign in" once in application instructions)
+  const text = content.toLowerCase().slice(0, 5000);
+  let matchCount = 0;
+  for (const indicator of RESTRICTED_CONTENT_INDICATORS) {
+    if (text.includes(indicator)) matchCount++;
+  }
+  if (matchCount >= 3) {
+    return { restricted: true, reason: 'login_challenge' };
+  }
+
+  return { restricted: false, reason: '' };
+}
+
 // ─── HTML Element Extraction (regex-based, no DOM) ───
 
 /**
@@ -646,6 +718,20 @@ export default async function (req: Request) {
       return Response.json({ error: 'Only http and https URLs are accepted.' }, { status: 400 });
     }
 
+    // Check for known restricted domains before attempting retrieval.
+    // These sites block server-side access; do not attempt to bypass.
+    const initialHostname = parsedUrl.hostname.replace(/^\[|\]$/g, '').replace(/^www\./, '').toLowerCase();
+    const restrictedDomain = getRestrictedDomain(initialHostname);
+    if (restrictedDomain) {
+      return Response.json({
+        status: 'restricted',
+        restricted_source: true,
+        domain: restrictedDomain,
+        message: RESTRICTED_DOMAIN_MESSAGES[restrictedDomain] || GENERIC_RESTRICTED_MESSAGE,
+        original_url: url,
+      });
+    }
+
     let currentUrl: URL = parsedUrl;
     let response: Response | null = null;
     let redirectCount = 0;
@@ -729,6 +815,19 @@ export default async function (req: Request) {
         error: 'No job content could be extracted from this page.',
         status: 'error',
       }, { status: 422 });
+    }
+
+    // Validate content for login/challenge/captcha pages (non-restricted domains
+    // that still returned an authentication or JavaScript-shell response)
+    const contentCheck = isRestrictedContent(extraction.isolatedContent, pageTitle);
+    if (contentCheck.restricted) {
+      return Response.json({
+        status: 'restricted',
+        restricted_source: true,
+        domain: hostname,
+        message: GENERIC_RESTRICTED_MESSAGE,
+        original_url: url,
+      });
     }
 
     return Response.json({

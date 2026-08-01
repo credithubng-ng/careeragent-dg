@@ -23,8 +23,17 @@ export default function UrlImportTab({ onExtracted, onFallback, preservingUrl })
       const data = await importJobFromUrl(url, (step) => setProgressStep(step));
       onExtracted(data, "URL", "AI URL Import");
     } catch (err) {
-      setError(err?.message || "We couldn't extract this job automatically.");
-      setProgressStep("");
+      if (err?.restrictedSource) {
+        onFallback("paste", {
+          restrictedSource: true,
+          domain: err.domain,
+          originalUrl: url,
+          message: err.message,
+        });
+      } else {
+        setError(err?.message || "We couldn't extract this job automatically.");
+        setProgressStep("");
+      }
     } finally {
       setLoading(false);
     }
