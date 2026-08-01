@@ -23,6 +23,7 @@ import Contacts from './pages/Contacts';
 import Analytics from './pages/Analytics';
 import JobSources from './pages/JobSources';
 import SettingsPage from './pages/Settings';
+import EmailImportReview from './pages/EmailImportReview';
 import WeeklyReview from './pages/WeeklyReview';
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -71,6 +72,7 @@ const AuthenticatedApp = () => {
           <Route path="/contacts" element={<Contacts />} />
           <Route path="/analytics" element={<Analytics />} />
           <Route path="/sources" element={<JobSources />} />
+          <Route path="/email-review" element={<EmailImportReview />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/weekly-review" element={<WeeklyReview />} />
         </Route>

@@ -1,0 +1,48 @@
+{
+  "description": "Automatically checks for new job-alert emails every 2 hours between 06:00 and 22:00 UK time, extracts vacancies, removes duplicates, and creates Job records for review",
+  "name": "Gmail Intake",
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "gmail_intake",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "process_emails": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "processGmailAlerts",
+            "args": {
+              "mode": "incremental",
+              "maxJobs": 50
+            }
+          },
+          "then": "end",
+          "x-base44": {
+            "title": "Process Gmail job alerts",
+            "description": "Check for new labelled emails and extract vacancies"
+          }
+        }
+      }
+    ]
+  },
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "recurring",
+      "cron_expression": "0 6,8,10,12,14,16,18,20,22 * * *",
+      "one_time_date": null,
+      "timezone": "Europe/London",
+      "interval_value": null,
+      "interval_unit": null,
+      "interval_anchor": null,
+      "ends_type": "never",
+      "ends_on_date": null,
+      "ends_after_count": null
+    }
+  }
+}

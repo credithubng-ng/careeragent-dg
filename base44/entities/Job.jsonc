@@ -173,7 +173,8 @@
         "URL",
         "Paste",
         "PDF",
-        "Manual"
+        "Manual",
+        "Email"
       ]
     },
     "extraction_status": {
@@ -190,6 +191,52 @@
     },
     "last_match_date": {
       "type": "string"
+    },
+    "discovered_from_email": {
+      "type": "boolean",
+      "default": false
+    },
+    "email_source": {
+      "type": "string"
+    },
+    "email_message_id": {
+      "type": "string"
+    },
+    "email_alert_date": {
+      "type": "string"
+    },
+    "source_job_id": {
+      "type": "string"
+    },
+    "additional_sources": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "first_discovered_date": {
+      "type": "string"
+    },
+    "last_seen_date": {
+      "type": "string"
+    },
+    "relevance_tier": {
+      "type": "string",
+      "enum": [
+        "Relevant",
+        "Possibly Relevant",
+        "Unlikely Relevant"
+      ]
+    },
+    "email_import_status": {
+      "type": "string",
+      "enum": [
+        "Complete",
+        "Partial",
+        "URL Restricted",
+        "Needs Review",
+        "Failed"
+      ]
     }
   },
   "required": [

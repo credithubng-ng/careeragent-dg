@@ -5,13 +5,14 @@ import { base44 } from "@/api/base44Client";
 import {
   LayoutDashboard, ListTodo, Briefcase, Send, Wand2, CalendarDays,
   FileText, User, Users, BarChart3, TrendingUp, Database, Settings as SettingsIcon,
-  Menu, X, LogOut,
+  MailCheck, Menu, X, LogOut,
 } from "lucide-react";
 
 const NAV = [
   { label: "Dashboard", to: "/", icon: LayoutDashboard },
   { label: "Today's Priorities", to: "/priorities", icon: ListTodo },
   { label: "Jobs", to: "/jobs", icon: Briefcase },
+  { label: "Email Import Review", to: "/email-review", icon: MailCheck },
   { label: "Applications", to: "/applications", icon: Send },
   { label: "Application Studio", to: "/studio", icon: Wand2 },
   { label: "Interviews", to: "/interviews", icon: CalendarDays },

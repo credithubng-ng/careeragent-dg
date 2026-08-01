@@ -7,6 +7,8 @@ import { Save, Plus, X } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { listOwnedRecords, createOwnedRecord, updateOwnedRecord } from "@/lib/ownedEntities";
 import DataCleanupPanel from "@/components/DataCleanupPanel";
+import GmailConnectionCard from "@/components/email-intake/GmailConnectionCard";
+import EmailSourceManager from "@/components/email-intake/EmailSourceManager";
 
 export default function Settings() {
   const { data: candidates, loading } = useCollection("Candidate", () => listOwnedRecords("Candidate", {}, "-created_date", 5));
@@ -82,6 +84,8 @@ export default function Settings() {
           ) : <Loading />}
         </SectionCard>
 
+        <GmailConnectionCard />
+        <EmailSourceManager />
         <DataCleanupPanel />
 
         <SectionCard title="Safety & Accuracy" description="Core principles enforced throughout the application">
