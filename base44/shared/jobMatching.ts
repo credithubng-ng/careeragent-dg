@@ -1,6 +1,6 @@
 // Shared job matching logic — usable in both frontend (careerAI.js) and backend (processGmailAlerts).
 // The invokeLLM parameter abstracts the difference between frontend and backend SDK calls.
-import { getPersonaConfig } from "./persona.ts";
+import { getCoachingInstruction, getPersonaConfig } from "./persona.ts";
 
 export const DEFAULT_WEIGHTS = {
   weight_experience: 25,
@@ -14,12 +14,12 @@ export const DEFAULT_WEIGHTS = {
 };
 
 export const DEFAULT_HARD_STOPS = [
-  "I do not have the required right to work",
+  "You do not have the required right to work",
   "Mandatory security clearance cannot be obtained",
-  "Salary is materially below my minimum",
-  "Location is outside my accepted area and remote work is unavailable",
+  "Salary is materially below your minimum",
+  "Location is outside your accepted area and remote work is unavailable",
   "Role is primarily technical data engineering rather than Data Governance",
-  "Role requires a mandatory qualification I do not possess",
+  "Role requires a mandatory qualification you do not possess",
   "Job is expired",
 ];
 
@@ -264,7 +264,7 @@ function determineCategoryStatus(
   }
 
   // Requirement stated but no verified evidence → Gap
-  return { status: "Gap", score: 0, maximum, requirement, explanation: explanation || "The requirement is clear but I lack verified evidence.", pointsWithheldReason: "No verified evidence for this requirement.", unresolvedQuestion };
+  return { status: "Gap", score: 0, maximum, requirement, explanation: explanation || "The requirement is clear but you lack verified evidence.", pointsWithheldReason: "No verified evidence for this requirement.", unresolvedQuestion };
 }
 
 function normaliseMatchResult(
@@ -429,9 +429,9 @@ function normaliseMatchResult(
     application_priority: String(result?.application_priority || ""),
     suggested_deadline: String(result?.suggested_deadline || ""),
     recommended_action: assessmentStatus === "Preliminary"
-      ? "Preliminary review — full job information required for a final assessment."
+      ? "This is a preliminary review because the available job information is incomplete. A final assessment requires the full vacancy details."
       : assessmentStatus === "Restricted Source"
-        ? "Full vacancy content is required for a final assessment."
+        ? "This is a restricted-source review. Full vacancy content is required for a final assessment."
         : String(result?.recommended_action || ""),
     breakdown,
     category_analysis: categoryAnalysis,
@@ -456,9 +456,9 @@ export async function runJobMatch(
   const weights = resolveScoringWeights(scoring);
 
   const res = await invokeLLM({
-    prompt: `${getPersonaConfig().perspectiveInstruction}
+    prompt: `${getCoachingInstruction()}
 
-You are a specialist Data Governance career matching engine. Evaluate how well I match the job. Be strictly evidence-based: NEVER claim I have a skill, qualification or experience that is not present in my profile or master CV. For every positive claim, copy a short evidence phrase from the named source and assign the scoring category it supports. Prefer an exact quotation and do not introduce facts that are absent from the source. If no supporting phrase exists, do not make the positive claim.
+You are a specialist Data Governance career matching engine. Evaluate how well the applicant matches the job and present your analysis as direct coaching to them using second person (you, your). Be strictly evidence-based: NEVER claim the applicant has a skill, qualification or experience that is not present in their profile or master CV. For every positive claim, copy a short evidence phrase from the named source and assign the scoring category it supports. Prefer an exact quotation and do not introduce facts that are absent from the source. If no supporting phrase exists, do not make the positive claim.
 
 Distinguish genuine Data Governance roles from roles that are primarily data engineering, software engineering, BI development, data science, ML or database administration. Related technical roles should score lower unless governance/quality/controls/stewardship/metadata/regulatory/leadership responsibilities are substantial.
 
@@ -469,8 +469,8 @@ For EACH of the 8 scoring categories, return a category_analysis entry with:
 - category: the scoring category key
 - requirement: the specific requirement stated in the job (or empty if not stated)
 - requirement_stated: true if the job mentions a requirement in this category, false if it does not
-- preliminary_status: one of "Verified" (I meet the requirement with evidence), "Partially Verified" (some but not all), "Gap" (requirement clear but I lack evidence), "Requirement Not Stated" (job does not mention this), "Insufficient Job Information" (extracted vacancy too incomplete to determine), "Not Applicable" (genuinely does not apply)
-- explanation: brief explanation of the assessment
+- preliminary_status: one of "Verified" (you meet the requirement with evidence), "Partially Verified" (some but not all), "Gap" (requirement clear but you lack evidence), "Requirement Not Stated" (job does not mention this), "Insufficient Job Information" (extracted vacancy too incomplete to determine), "Not Applicable" (genuinely does not apply)
+- explanation: brief explanation of the assessment, addressed to the applicant in second person (e.g. "Your Master CV confirms...")
 - points_withheld_reason: why points were withheld if applicable
 - unresolved_question: any material question that must be resolved before a final assessment
 - awarded_points: points awarded for this category (0 if gap, requirement not stated, or insufficient info)
@@ -480,7 +480,7 @@ Also return strong_matches, partial_matches, and transferable_matches with evide
 Apply hard-stop rules where relevant (flag in hard_stops, do not delete the job). Hard stops include:
 ${JSON.stringify(DEFAULT_HARD_STOPS)}
 
-For missing_requirements list only requirements the available evidence shows I lack. Put unknowns in questions instead. Suggested CV must be the supplied master CV name. Suggested deadline should be the closing date if known else within 7 days.
+For missing_requirements list only requirements the available evidence shows you lack. Put unknowns in questions instead. Suggested CV must be the supplied master CV name. Suggested deadline should be the closing date if known else within 7 days.
 
 IMPORTANT: If the job content is incomplete (short description, missing sections), use "Insufficient Job Information" for categories that cannot be assessed. Do not guess or infer requirements that are not stated in the job text.
 

@@ -1,7 +1,7 @@
 import { base44 } from "@/api/base44Client";
 import { recommendationBand } from "./format";
 import { runJobMatch as sharedRunJobMatch } from "../../base44/shared/jobMatching.ts";
-import { getPersonaConfig } from "../../base44/shared/persona.ts";
+import { getPersonaConfig, getAuthoredInstruction, getCoachingInstruction } from "../../base44/shared/persona.ts";
 
 export const DEFAULT_WEIGHTS = {
   weight_experience: 25,
@@ -15,12 +15,12 @@ export const DEFAULT_WEIGHTS = {
 };
 
 export const DEFAULT_HARD_STOPS = [
-  "I do not have the required right to work",
+  "You do not have the required right to work",
   "Mandatory security clearance cannot be obtained",
-  "Salary is materially below my minimum",
-  "Location is outside my accepted area and remote work is unavailable",
+  "Salary is materially below your minimum",
+  "Location is outside your accepted area and remote work is unavailable",
   "Role is primarily technical data engineering rather than Data Governance",
-  "Role requires a mandatory qualification I do not possess",
+  "Role requires a mandatory qualification you do not possess",
   "Job is expired",
 ];
 
@@ -293,7 +293,7 @@ function normaliseMatchResult(result, contextData, weights) {
     application_priority: String(result?.application_priority || ""),
     suggested_deadline: String(result?.suggested_deadline || ""),
     recommended_action: !hasScore
-      ? "Review my profile and Master CV evidence before making an application decision."
+      ? "Review your profile and Master CV evidence before making an application decision."
       : String(result?.recommended_action || ""),
     breakdown,
   };
@@ -381,9 +381,9 @@ export async function generateApplicationSection(section, job, candidate, cv, ma
     "Recruiter Message": "a concise LinkedIn or email introduction to a recruiter or hiring manager expressing interest in the role. Use a professional subject line, a brief greeting, 1–2 short paragraphs and a sign-off.",
     "Application Question": "a direct, evidence-based answer to the supplied application question. Use 2–3 well-structured paragraphs with clear topic sentences and concrete supporting evidence.",
   };
-  const prompt = `${getPersonaConfig().perspectiveInstruction}
+  const prompt = `${getAuthoredInstruction()}
 
-You are a specialist career application writer for a senior Data Governance professional. Generate ${sectionPrompts[section] || section}. Write in British English.\n\nFORMATTING RULES:\n- Format the document using clean markdown so it reads as a polished, presentation-ready document.\n- Use markdown headings (## for sections, ### for subsections) to create a clear visual structure.\n- Use bullet points or numbered lists where the content is naturally a list (e.g. skills, achievements, recommendations).\n- Write flowing paragraphs for prose sections; avoid large unbroken walls of text.\n- Use **bold** sparingly to emphasise the candidate's key strengths or role-critical keywords.\n- Do NOT wrap the entire document in code blocks or fences.\n- Do NOT add horizontal rules between every paragraph — use headings to separate sections.\n- Ensure there is a blank line between paragraphs and around headings/lists for readability.\n\nGROUNDING RULES:\n- Use only my facts present in my Profile or Master CV below.\n- Prioritise the supplied VERIFIED MATCH EVIDENCE when aligning the draft to the job.\n- Never invent or infer experience, qualifications, employers, dates, achievements, metrics, technologies, responsibilities or sector exposure.\n- Do not present a missing requirement as my strength.\n- Return every exact source phrase used to support a factual claim in evidence_quotes. These quotes are checked by the application before the draft is saved.\n\nMY PROFILE & CV:\n${JSON.stringify(candidateContext, null, 2)}\n\nVERIFIED MATCH EVIDENCE:\n${JSON.stringify(verifiedMatchEvidence, null, 2)}\n\nKNOWN GAPS OR QUESTIONS:\n${JSON.stringify({
+You are a specialist career application writer for a senior Data Governance professional. Generate ${sectionPrompts[section] || section}. Write in British English.\n\nFORMATTING RULES:\n- Format the document using clean markdown so it reads as a polished, presentation-ready document.\n- Use markdown headings (## for sections, ### for subsections) to create a clear visual structure.\n- Use bullet points or numbered lists where the content is naturally a list (e.g. skills, achievements, recommendations).\n- Write flowing paragraphs for prose sections; avoid large unbroken walls of text.\n- Use **bold** sparingly to emphasise the candidate's key strengths or role-critical keywords.\n- Do NOT wrap the entire document in code blocks or fences.\n- Do NOT add horizontal rules between every paragraph — use headings to separate sections.\n- Ensure there is a blank line between paragraphs and around headings/lists for readability.\n\nGROUNDING RULES:\n- Use only facts present in the Profile or Master CV below.\n- Prioritise the supplied VERIFIED MATCH EVIDENCE when aligning the draft to the job.\n- Never invent or infer experience, qualifications, employers, dates, achievements, metrics, technologies, responsibilities or sector exposure.\n- Do not present a missing requirement as a strength.\n- Return every exact source phrase used to support a factual claim in evidence_quotes. These quotes are checked by the application before the draft is saved.\n\nYOUR PROFILE & CV:\n${JSON.stringify(candidateContext, null, 2)}\n\nVERIFIED MATCH EVIDENCE:\n${JSON.stringify(verifiedMatchEvidence, null, 2)}\n\nKNOWN GAPS OR QUESTIONS:\n${JSON.stringify({
     missing_requirements: match?.missing_requirements || [],
     concerns: match?.concerns || [],
     questions: match?.questions || [],
@@ -423,9 +423,9 @@ You are a specialist career application writer for a senior Data Governance prof
 export async function generateInterviewQuestions(job, candidate) {
   const ctx = JSON.stringify({ candidate_profile: candidate });
   const res = await base44.integrations.Core.InvokeLLM({
-    prompt: `${getPersonaConfig().perspectiveInstruction}
+    prompt: `${getCoachingInstruction()}
 
-You are an interview preparation assistant for a senior Data Governance role. Based on the job description and my profile, generate 8 likely interview questions covering technical Data Governance knowledge, leadership, stakeholder management and behavioural/competency questions. Do not invent employer facts. Return as a JSON array of strings.\n\nMY PROFILE:\n${ctx}\n\nJOB:\n${JSON.stringify(job)}`,
+You are an interview preparation assistant for a senior Data Governance role. Based on the job description and the applicant's profile, generate 8 likely interview questions covering technical Data Governance knowledge, leadership, stakeholder management and behavioural/competency questions. Do not invent employer facts. Return as a JSON array of strings.\n\nYOUR PROFILE:\n${ctx}\n\nJOB:\n${JSON.stringify(job)}`,
     response_json_schema: { type: "object", properties: { questions: { type: "array", items: { type: "string" } } } },
   });
   return res?.questions || [];
