@@ -15,14 +15,33 @@
     "total_score": {
       "type": "number"
     },
+    "verified_fit": {
+      "type": "number"
+    },
+    "assessment_coverage": {
+      "type": "number"
+    },
+    "assessment_status": {
+      "type": "string",
+      "enum": [
+        "Preliminary",
+        "Final",
+        "Needs Review",
+        "Restricted Source",
+        "Failed"
+      ],
+      "default": "Preliminary"
+    },
     "recommendation": {
       "type": "string",
       "enum": [
         "Excellent Match",
-        "Strong Match",
+        "Good Match",
+        "Worth Reviewing",
         "Possible Match",
-        "Weak Match",
-        "Do Not Apply"
+        "Poor Match",
+        "Do Not Apply",
+        "Reject"
       ]
     },
     "confidence": {
@@ -85,15 +104,48 @@
     "breakdown": {
       "type": "object",
       "additionalProperties": true
+    },
+    "category_analysis": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "content_hash": {
+      "type": "string"
     }
   },
   "required": [
     "job_id"
   ],
   "rls": {
-    "create": { "data.owner_email": "{{user.email}}" },
-    "read": { "$or": [{ "data.owner_email": "{{user.email}}" }, { "user_condition": { "role": "admin" } }] },
-    "update": { "$or": [{ "data.owner_email": "{{user.email}}" }, { "user_condition": { "role": "admin" } }] },
-    "delete": { "data.owner_email": "{{user.email}}" }
+    "create": {
+      "data.owner_email": "{{user.email}}"
+    },
+    "read": {
+      "$or": [
+        {
+          "data.owner_email": "{{user.email}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "data.owner_email": "{{user.email}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "data.owner_email": "{{user.email}}"
+    }
   }
 }

@@ -27,6 +27,26 @@
     "original_job_url": {
       "type": "string"
     },
+    "canonical_job_url": {
+      "type": "string"
+    },
+    "email_source_url": {
+      "type": "string"
+    },
+    "final_redirected_url": {
+      "type": "string"
+    },
+    "url_resolution_status": {
+      "type": "string",
+      "enum": [
+        "Resolved",
+        "Restricted",
+        "Failed",
+        "Not Attempted",
+        "Skipped"
+      ],
+      "default": "Not Attempted"
+    },
     "job_reference": {
       "type": "string"
     },
@@ -52,10 +72,21 @@
     "contract_length": {
       "type": "string"
     },
+    "inside_or_outside_ir35": {
+      "type": "string",
+      "enum": [
+        "Inside IR35",
+        "Outside IR35",
+        "Not Stated"
+      ]
+    },
     "location": {
       "type": "string"
     },
     "country": {
+      "type": "string"
+    },
+    "region": {
       "type": "string"
     },
     "work_arrangement": {
@@ -76,9 +107,25 @@
     "salary_description": {
       "type": "string"
     },
+    "salary_period": {
+      "type": "string",
+      "enum": [
+        "annual",
+        "daily",
+        "hourly",
+        "monthly",
+        "not_stated"
+      ]
+    },
+    "salary_text": {
+      "type": "string"
+    },
     "currency": {
       "type": "string",
       "default": "GBP"
+    },
+    "role_summary": {
+      "type": "string"
     },
     "job_description": {
       "type": "string"
@@ -90,6 +137,12 @@
       "type": "string"
     },
     "desirable_requirements": {
+      "type": "string"
+    },
+    "required_skills": {
+      "type": "string"
+    },
+    "required_experience": {
       "type": "string"
     },
     "required_years_experience": {
@@ -107,7 +160,16 @@
     "required_sector_experience": {
       "type": "string"
     },
+    "seniority": {
+      "type": "string"
+    },
+    "sector": {
+      "type": "string"
+    },
     "right_to_work_requirements": {
+      "type": "string"
+    },
+    "language_requirements": {
       "type": "string"
     },
     "security_clearance_requirement": {
@@ -157,9 +219,6 @@
     "recommendation": {
       "type": "string"
     },
-    "sector": {
-      "type": "string"
-    },
     "vacancy_confirmed_active": {
       "type": "boolean",
       "default": false
@@ -187,6 +246,73 @@
       ]
     },
     "extraction_method": {
+      "type": "string"
+    },
+    "extraction_confidence": {
+      "type": "string",
+      "enum": [
+        "High",
+        "Medium",
+        "Low"
+      ]
+    },
+    "job_content_status": {
+      "type": "string",
+      "enum": [
+        "Complete",
+        "Partial",
+        "Restricted Source",
+        "Needs Manual Review",
+        "Failed"
+      ],
+      "default": "Partial"
+    },
+    "enrichment_status": {
+      "type": "string",
+      "enum": [
+        "Pending",
+        "Processing",
+        "Completed",
+        "Partial",
+        "Restricted",
+        "Failed"
+      ],
+      "default": "Pending"
+    },
+    "enrichment_method": {
+      "type": "string",
+      "enum": [
+        "Structured JobPosting",
+        "Website Adapter",
+        "Generic Page Extraction",
+        "Email Snippet",
+        "Manual Paste",
+        "PDF",
+        "AI Isolation"
+      ]
+    },
+    "enrichment_attempted_at": {
+      "type": "string"
+    },
+    "enrichment_completed_at": {
+      "type": "string"
+    },
+    "enrichment_error": {
+      "type": "string"
+    },
+    "ignored_section_count": {
+      "type": "number",
+      "default": 0
+    },
+    "source_content_length": {
+      "type": "number",
+      "default": 0
+    },
+    "cleaned_content_length": {
+      "type": "number",
+      "default": 0
+    },
+    "content_hash": {
       "type": "string"
     },
     "last_match_date": {

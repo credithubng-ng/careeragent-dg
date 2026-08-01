@@ -1,5 +1,6 @@
 import { base44 } from "@/api/base44Client";
 import { recommendationBand } from "./format";
+import { runJobMatch as sharedRunJobMatch } from "../../base44/shared/jobMatching.ts";
 
 export const DEFAULT_WEIGHTS = {
   weight_experience: 25,
@@ -352,61 +353,12 @@ export async function extractJobFromText(text) {
   return res;
 }
 
-export async function analyseJobMatch(job, candidate, cvs, scoring) {
-  const contextData = buildCandidateContextData(candidate, cvs);
-  const ctx = JSON.stringify(contextData, null, 2);
-  const weights = resolveScoringWeights(scoring);
-  const res = await base44.integrations.Core.InvokeLLM({
-    model: "gpt_5",
-    prompt: `You are a specialist Data Governance career matching engine. Evaluate how well the candidate matches the job. Be strictly evidence-based: NEVER claim the candidate has a skill, qualification or experience that is not present in the candidate profile or master CV. For every positive claim, copy a short evidence phrase from the named source and assign the scoring category it supports. Prefer an exact quotation and do not introduce facts that are absent from the source. If no supporting phrase exists, do not make the positive claim.\n\nDistinguish genuine Data Governance roles from roles that are primarily data engineering, software engineering, BI development, data science, ML or database administration. Related technical roles should score lower unless governance/quality/controls/stewardship/metadata/regulatory/leadership responsibilities are substantial.\n\nApply these scoring weights (they sum to 100):\n${JSON.stringify(weights)}\n\nFor breakdown, return the awarded points for every category, capped at that category's configured weight. A category may receive positive points only when at least one returned positive evidence item supports that category. List every category that can be compared from the supplied job and candidate information in assessable_categories. A job description plus a populated Candidate Profile or Master CV must produce at least one assessable category; do not return an empty assessment merely because some fields are unknown. In particular, assess experience, essential skills, seniority/leadership and responsibilities whenever the supplied texts discuss them. Do not treat an unknown salary, qualification, location or other missing fact as a mismatch. The application will independently verify the evidence, calculate the final normalised score across assessable categories and derive the recommendation.\n\nApply hard-stop rules where relevant (do not delete the job, just flag in hard_stops and lower the relevant category scores). Hard stops include:\n${JSON.stringify(DEFAULT_HARD_STOPS)}\n\nFor missing_requirements list only requirements the available evidence shows the candidate lacks. Put unknowns in questions instead. Suggested CV must be the supplied master CV name. Suggested deadline should be the closing date if known else within 7 days. Return JSON per schema.\n\nCANDIDATE:\n${ctx}\n\nJOB:\n${JSON.stringify(job)}`,
-    response_json_schema: {
-      type: "object",
-      properties: {
-        confidence: { type: "string" },
-        strong_matches: matchEvidenceSchema(),
-        partial_matches: matchEvidenceSchema(),
-        missing_requirements: { type: "array", items: { type: "string" } },
-        transferable_matches: matchEvidenceSchema(),
-        concerns: { type: "array", items: { type: "string" } },
-        questions: { type: "array", items: { type: "string" } },
-        hard_stops: { type: "array", items: { type: "string" } },
-        suggested_cv: { type: "string" },
-        application_priority: { type: "string" },
-        suggested_deadline: { type: "string" },
-        recommended_action: { type: "string" },
-        assessable_categories: {
-          type: "array",
-          items: { type: "string", enum: SCORING_CATEGORIES },
-          minItems: 1,
-        },
-        breakdown: {
-          type: "object",
-          properties: Object.fromEntries(
-            SCORING_CATEGORIES.map((category) => [category, { type: "number" }])
-          ),
-          required: SCORING_CATEGORIES,
-        },
-      },
-      required: [
-        "strong_matches",
-        "partial_matches",
-        "transferable_matches",
-        "assessable_categories",
-        "breakdown",
-      ],
-    },
-  });
-
-  if (
-    !res ||
-    typeof res !== "object" ||
-    !Array.isArray(res.assessable_categories) ||
-    res.assessable_categories.length === 0
-  ) {
-    throw new Error("The AI returned an incomplete match assessment. Please run the analysis again.");
-  }
-
-  return normaliseMatchResult(res, contextData, weights);
+export async function analyseJobMatch(job, candidate, cvs, scoring, jobContentStatus = "Complete") {
+  return sharedRunJobMatch(
+    job, candidate, cvs, scoring,
+    (params) => base44.integrations.Core.InvokeLLM(params),
+    jobContentStatus
+  );
 }
 
 export async function generateApplicationSection(section, job, candidate, cv, match, questionText) {

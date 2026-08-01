@@ -47,27 +47,45 @@ function ListBlock({ title, items, icon: Icon, tone = "default" }) {
   );
 }
 
-function ScoreBreakdown({ breakdown }) {
+const STATUS_LABELS = {
+  "Verified": { label: "Verified", color: "text-emerald-600" },
+  "Partially Verified": { label: "Partially Verified", color: "text-amber-600" },
+  "Gap": { label: "Gap", color: "text-rose-600" },
+  "Requirement Not Stated": { label: "Not Stated", color: "text-muted-foreground" },
+  "Insufficient Job Information": { label: "Insufficient Info", color: "text-amber-600" },
+  "Not Applicable": { label: "N/A", color: "text-muted-foreground" },
+  "Not assessed": { label: "Not Assessed", color: "text-muted-foreground" },
+  "Needs evidence": { label: "Needs Evidence", color: "text-amber-600" },
+};
+
+function ScoreBreakdown({ breakdown, categoryAnalysis }) {
   const rows = Object.entries(SCORE_LABELS)
-    .map(([key, label]) => ({ key, label, ...breakdown?.[key] }))
-    .filter((row) => row.maximum != null);
+    .map(([key, label]) => ({ key, label, ...breakdown?.[key], analysis: categoryAnalysis?.[key] }))
+    .filter((row) => row.maximum != null || row.status === "Requirement Not Stated");
   if (rows.length === 0) return null;
 
   return (
     <div>
-      <p className="text-sm font-medium text-foreground mb-2">Verified score breakdown</p>
+      <p className="text-sm font-medium text-foreground mb-2">Category-by-category analysis</p>
       <div className="divide-y divide-border rounded-lg border border-border">
-        {rows.map((row) => (
-          <div key={row.key} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
-            <div>
-              <p className="text-foreground">{row.label}</p>
-              <p className="text-xs text-muted-foreground">{row.status}</p>
+        {rows.map((row) => {
+          const statusInfo = STATUS_LABELS[row.status] || STATUS_LABELS["Not assessed"];
+          const showScore = ["Verified", "Partially Verified", "Gap"].includes(row.status);
+          return (
+            <div key={row.key} className="px-3 py-2.5 text-sm">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-foreground">{row.label}</p>
+                  <p className={`text-xs ${statusInfo.color}`}>{statusInfo.label}</p>
+                </div>
+                <span className="font-medium text-foreground">{showScore ? `${row.score || 0}/${row.maximum}` : "—"}</span>
+              </div>
+              {row.analysis?.requirement && <p className="text-xs text-muted-foreground mt-1">Requirement: {row.analysis.requirement}</p>}
+              {row.analysis?.explanation && <p className="text-xs text-muted-foreground mt-0.5">{row.analysis.explanation}</p>}
+              {row.analysis?.unresolved_question && <p className="text-xs text-amber-600 mt-0.5">⚠ {row.analysis.unresolved_question}</p>}
             </div>
-            <span className="font-medium text-foreground">
-              {row.status === "Not assessed" ? "Not assessed" : `${row.score || 0}/${row.maximum}`}
-            </span>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
@@ -133,7 +151,7 @@ export default function JobDetail() {
     const t = toast.loading("Analysing match…");
     try {
       const result = await withTimeout(
-        analyseJobMatch(job, candidate, cvs, scoring),
+        analyseJobMatch(job, candidate, cvs, scoring, job.job_content_status || "Complete"),
         MATCH_TIMEOUT_MS,
         "Match analysis timed out. Please try again."
       );
@@ -191,6 +209,28 @@ export default function JobDetail() {
     toast.success("Interview added");
   }
 
+  async function enrichAndReassess() {
+    setMatching(true);
+    const t = toast.loading("Enriching and reassessing…");
+    try {
+      const res = await base44.functions.invoke("enrichAndReassess", { job_id: id });
+      if (res.summary) {
+        toast.success(`Enriched: ${res.summary.enriched}, Reassessed: ${res.summary.reassessed}`, { id: t });
+        // Reload job and matches
+        const j = await base44.entities.Job.get(id);
+        setJob(j);
+        const newMatches = await listOwnedRecords("JobMatch", { job_id: id }, "-created_date", 5);
+        setMatch(newMatches[0] || null);
+      } else {
+        toast.error(res.error || "Enrichment failed", { id: t });
+      }
+    } catch (e) {
+      toast.error(e?.message || "Enrichment failed", { id: t });
+    } finally {
+      setMatching(false);
+    }
+  }
+
   if (loading) return <Loading />;
   if (!job) return <EmptyState title="Job not found" />;
 
@@ -205,6 +245,7 @@ export default function JobDetail() {
     { label: "Add Follow-Up", icon: Plus, onClick: addFollowUp, tone: "blue" },
     { label: "Add Interview", icon: CalendarPlus, onClick: addInterview, tone: "violet" },
     { label: "Mark Expired", icon: AlertTriangle, onClick: () => { setStatus("Expired"); base44.entities.Job.update(id, { expired_status: true }); }, tone: "red" },
+    { label: "Enrich & Reassess", icon: Sparkles, onClick: () => enrichAndReassess(), tone: "primary" },
   ];
 
   return (
@@ -268,6 +309,28 @@ export default function JobDetail() {
                   <div className="text-sm text-muted-foreground">Confidence: <span className="font-medium text-foreground">{match.confidence}</span></div>
                   {match.suggested_cv && <div className="text-sm text-muted-foreground">Suggested CV: <span className="font-medium text-foreground">{match.suggested_cv}</span></div>}
                 </div>
+                {/* Assessment status, coverage, verified fit */}
+                <div className="flex flex-wrap gap-3">
+                  {match.assessment_status && (
+                    <span className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium ${
+                      match.assessment_status === "Final" ? "bg-emerald-50 text-emerald-700 border-emerald-200" :
+                      match.assessment_status === "Preliminary" ? "bg-amber-50 text-amber-700 border-amber-200" :
+                      match.assessment_status === "Restricted Source" ? "bg-rose-50 text-rose-700 border-rose-200" :
+                      "bg-slate-50 text-slate-700 border-slate-200"
+                    }`}>
+                      {match.assessment_status === "Preliminary" && "Preliminary review — full job information required"}
+                      {match.assessment_status === "Final" && "Final assessment"}
+                      {match.assessment_status === "Restricted Source" && "Restricted source — full vacancy content required"}
+                      {match.assessment_status === "Needs Review" && "Needs review"}
+                    </span>
+                  )}
+                  {match.assessment_coverage != null && (
+                    <span className="text-xs text-muted-foreground">Coverage: <span className="font-medium text-foreground">{match.assessment_coverage}%</span></span>
+                  )}
+                  {match.verified_fit != null && (
+                    <span className="text-xs text-muted-foreground">Verified fit: <span className="font-medium text-foreground">{match.verified_fit} pts</span></span>
+                  )}
+                </div>
                 {match.hard_stops?.length > 0 && (
                   <Notice tone="rose"><strong>Hard-stop warnings:</strong> {match.hard_stops.join("; ")}</Notice>
                 )}
@@ -279,7 +342,7 @@ export default function JobDetail() {
                   <ListBlock title="Potential concerns" items={match.concerns} icon={AlertTriangle} tone="amber" />
                   <ListBlock title="Questions to investigate" items={match.questions} icon={HelpCircle} tone="amber" />
                 </div>
-                <ScoreBreakdown breakdown={match.breakdown} />
+                <ScoreBreakdown breakdown={match.breakdown} categoryAnalysis={match.category_analysis} />
                 {(match.recommended_action || match.application_priority || match.suggested_deadline) && (
                   <div className="rounded-lg border border-border bg-muted/30 p-4 text-sm">
                     <p><span className="text-muted-foreground">Recommended action:</span> <span className="font-medium text-foreground">{match.recommended_action}</span></p>
@@ -307,7 +370,8 @@ export default function JobDetail() {
           <SectionCard title="Job Details">
             <dl className="space-y-2 text-sm">
               {[
-                ["Employer", job.employer], ["Recruitment Agency", job.recruitment_agency], ["Source", job.job_source_name],
+                ["Job Content Status", job.job_content_status], ["Enrichment Status", job.enrichment_status], ["Enrichment Method", job.enrichment_method],
+                ["Extraction Confidence", job.extraction_confidence], ["Employer", job.employer], ["Recruitment Agency", job.recruitment_agency], ["Source", job.job_source_name],
                 ["Reference", job.job_reference], ["Location", job.location], ["Country", job.country],
                 ["Working pattern", job.work_arrangement], ["Employment type", job.employment_type], ["Contract length", job.contract_length],
                 ["Sector", job.sector], ["Salary", (job.salary_min || job.salary_max) ? `${gbp(job.salary_min)}${job.salary_max ? ` – ${gbp(job.salary_max)}` : ""}` : job.salary_description],
@@ -315,7 +379,9 @@ export default function JobDetail() {
                 ["Qualifications", job.required_qualifications], ["Certifications", job.required_certifications],
                 ["Technologies", job.required_technologies], ["Sector experience", job.required_sector_experience],
                 ["Right to work", job.right_to_work_requirements], ["Security clearance", job.security_clearance_requirement],
+                ["Canonical URL", job.canonical_job_url], ["Email Source URL", job.email_source_url],
                 ["Date discovered", ukDate(job.date_discovered)], ["Date posted", ukDate(job.date_posted)],
+                ["Last enriched", ukDate(job.enrichment_completed_at)], ["Last matched", ukDate(job.last_match_date)],
                 ["Closing date", closeDays != null ? `${ukDate(job.closing_date)} (${closeDays === 0 ? "today" : closeDays < 0 ? "closed" : `in ${closeDays} day${closeDays === 1 ? "" : "s"}`})` : ukDate(job.closing_date)],
               ].map(([k, v]) => v ? [<dt key="k" className="text-muted-foreground">{k}</dt>, <dd key="v" className="font-medium text-foreground mb-2">{v}</dd>] : null)}
             </dl>

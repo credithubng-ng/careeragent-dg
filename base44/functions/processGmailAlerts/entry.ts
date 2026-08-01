@@ -11,7 +11,7 @@ import {
 import { filterRelevance } from "../../shared/relevanceFilter.ts";
 import { runJobMatch } from "../../shared/jobMatching.ts";
 import { fetchJobPageContent } from "../../shared/jobPageFetcher.ts";
-import { extractJobFromText, validateJobCompleteness } from "../../shared/jobExtraction.ts";
+import { extractJobFromText, assessContentQuality, computeContentHash } from "../../shared/jobExtraction.ts";
 
 const GMAIL_API = "https://gmail.googleapis.com/gmail/v1/users/me";
 const CONNECTOR_ID = "6a6dbe19898b53557d5ea634";
@@ -206,6 +206,14 @@ export default async function(req: Request): Promise<Response> {
           let extractionStatus = "Partial";
           let extractionMethod = "Email Import";
           let emailImportStatus: string = "Needs Review";
+          let contentStatus: string = "Partial";
+          let enrichmentStatus: string = "Pending";
+          let enrichmentMethod: string = "Email Snippet";
+          let extractionConfidence: string = "Low";
+          let enrichmentError: string = "";
+          let canonicalUrl: string = "";
+          let finalUrl: string = "";
+          let urlResolutionStatus: string = "Not Attempted";
 
           // Steps 3-5: Retrieve full vacancy page → isolate primary job → structure advert
           if (vacancy.job_url) {
@@ -231,22 +239,41 @@ export default async function(req: Request): Promise<Response> {
                 }
 
                 extractionStatus = "Success";
-                extractionMethod = `Email + Page Fetch (${pageResult.extractionSource || "generic"})`;
+                const enrichmentMethodMap: Record<string, string> = {
+                  structured_jobposting: "Structured JobPosting",
+                  website_adapter: "Website Adapter",
+                  generic_container: "Generic Page Extraction",
+                  generic_text: "Generic Page Extraction",
+                };
+                enrichmentMethod = enrichmentMethodMap[pageResult.extractionSource || ""] || "Generic Page Extraction";
+                canonicalUrl = pageResult.finalUrl || vacancy.job_url || "";
+                finalUrl = pageResult.finalUrl || "";
+                urlResolutionStatus = "Resolved";
 
-                // Step 6: Validate completeness
-                const validation = validateJobCompleteness(structuredJob);
-                if (validation.valid && validation.confidence === "High") {
+                // Step 6: Assess content quality
+                const quality = assessContentQuality(structuredJob);
+                contentStatus = quality.status;
+                enrichmentStatus = quality.status === "Complete" ? "Completed" : "Partial";
+                extractionConfidence = quality.confidence;
+                if (quality.issues.length > 0) {
+                  enrichmentError = quality.issues.join("; ");
+                }
+                if (quality.status === "Complete") {
                   emailImportStatus = "Complete";
-                } else if (validation.valid) {
-                  emailImportStatus = "Partial";
-                } else {
+                } else if (quality.status === "Needs Manual Review") {
                   emailImportStatus = "Needs Review";
+                } else {
+                  emailImportStatus = "Partial";
                 }
               } else if (pageResult.status === "restricted") {
                 // Restricted site (LinkedIn, Indeed, etc.) — use email data only
                 extractionStatus = "Partial";
                 extractionMethod = `Email Import (page restricted: ${pageResult.restrictedDomain || "unknown"})`;
                 emailImportStatus = "URL Restricted";
+                contentStatus = "Restricted Source";
+                enrichmentStatus = "Restricted";
+                enrichmentMethod = "Email Snippet";
+                urlResolutionStatus = "Restricted";
               }
               // If page fetch errors, fall back to email data silently
             } catch (pageError: any) {
@@ -299,6 +326,30 @@ export default async function(req: Request): Promise<Response> {
             email_import_status: emailImportStatus,
             job_status: "New",
             currency: structuredJob.currency || "GBP",
+            job_content_status: contentStatus,
+            enrichment_status: enrichmentStatus,
+            enrichment_method: enrichmentMethod,
+            enrichment_attempted_at: new Date().toISOString(),
+            enrichment_completed_at: new Date().toISOString(),
+            extraction_confidence: extractionConfidence,
+            enrichment_error: enrichmentError || undefined,
+            canonical_job_url: canonicalUrl || undefined,
+            email_source_url: vacancy.job_url || "",
+            final_redirected_url: finalUrl || undefined,
+            url_resolution_status: urlResolutionStatus,
+            ignored_section_count: 0,
+            source_content_length: 0,
+            cleaned_content_length: 0,
+            content_hash: computeContentHash(structuredJob),
+            role_summary: structuredJob.role_summary || "",
+            required_skills: structuredJob.required_skills || "",
+            required_experience: structuredJob.required_experience || "",
+            seniority: structuredJob.seniority || "",
+            inside_or_outside_ir35: structuredJob.inside_or_outside_ir35 || "Not Stated",
+            salary_period: structuredJob.salary_period || "not_stated",
+            salary_text: structuredJob.salary_text || "",
+            region: structuredJob.region || "",
+            language_requirements: structuredJob.language_requirements || "",
           };
 
           const created = await base44.asServiceRole.entities.Job.create(jobData);
@@ -306,12 +357,13 @@ export default async function(req: Request): Promise<Response> {
           emailJobsImported++;
           jobsImported++;
 
-          // Automatic AI scoring — no manual "Save Scoring" needed
+          // Automatic AI scoring — only when content is sufficient
           try {
-            if (candidate && usableCVs.length > 0) {
+            if (candidate && usableCVs.length > 0 && contentStatus !== "Needs Manual Review" && contentStatus !== "Failed") {
               const matchResult = await runJobMatch(
                 created, candidate, usableCVs, scoring,
-                (params: any) => base44.asServiceRole.integrations.Core.InvokeLLM(params)
+                (params: any) => base44.asServiceRole.integrations.Core.InvokeLLM(params),
+                contentStatus
               );
               await base44.asServiceRole.entities.JobMatch.create({
                 owner_email: ownerEmail,

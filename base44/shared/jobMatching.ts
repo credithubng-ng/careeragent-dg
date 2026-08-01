@@ -25,6 +25,14 @@ export const DEFAULT_HARD_STOPS = [
 const SCORING_CATEGORIES = Object.keys(DEFAULT_WEIGHTS);
 const EVIDENCE_SIMILARITY_THRESHOLD = 0.72;
 
+// Material questions that prevent an "Excellent Match" classification
+const MATERIAL_QUESTIONS = [
+  "right to work", "work authorisation", "visa", "sponsorship",
+  "security clearance", "clearance", "language requirement",
+  "mandatory qualification", "relocation", "relocate",
+  "essential skill", "core responsibility", "expired",
+];
+
 export function recommendationBand(score: number): string | null {
   if (score == null) return null;
   if (score >= 90) return "Excellent Match";
@@ -141,10 +149,12 @@ function verifyEvidenceItems(items: any[], contextData: any) {
   const verified: string[] = [];
   const rejected: string[] = [];
   const verifiedCategories = new Set<string>();
+  const partiallyVerifiedCategories = new Set<string>();
 
   for (const item of Array.isArray(items) ? items : []) {
     const claim = String(item?.claim || "").trim();
     const evidence = String(item?.evidence || "").trim();
+    const matchType = String(item?.match_type || "strong"); // strong, partial, transferable
     const preferredSource = item?.source === "Master CV" ? "Master CV" : "Candidate Profile";
     const category = SCORING_CATEGORIES.includes(item?.category) ? item.category : "";
     const sources = preferredSource === "Master CV"
@@ -156,13 +166,18 @@ function verifyEvidenceItems(items: any[], contextData: any) {
 
     if (claim && evidence.length >= 4 && verifiedSource) {
       verified.push(`${claim} — Evidence: "${evidence}" (${verifiedSource})`);
-      if (category) verifiedCategories.add(category);
+      if (category) {
+        verifiedCategories.add(category);
+        if (matchType === "partial" || matchType === "transferable") {
+          partiallyVerifiedCategories.add(category);
+        }
+      }
     } else if (claim) {
       rejected.push(claim);
     }
   }
 
-  return { verified, rejected, verifiedCategories };
+  return { verified, rejected, verifiedCategories, partiallyVerifiedCategories };
 }
 
 function matchEvidenceSchema() {
@@ -175,6 +190,7 @@ function matchEvidenceSchema() {
         evidence: { type: "string" },
         source: { type: "string", enum: ["Candidate Profile", "Master CV"] },
         category: { type: "string", enum: SCORING_CATEGORIES },
+        match_type: { type: "string", enum: ["strong", "partial", "transferable"] },
       },
       required: ["claim", "evidence", "source", "category"],
     },
@@ -195,76 +211,208 @@ function resolveScoringWeights(scoring: any) {
   );
 }
 
-function normaliseBreakdown(result: any, weights: any, verifiedCategories: Set<string>) {
-  const assessable = new Set(
-    (Array.isArray(result?.assessable_categories) ? result.assessable_categories : [])
-      .filter((category: string) => SCORING_CATEGORIES.includes(category))
-  );
-  const rawBreakdown = result?.breakdown && typeof result.breakdown === "object"
-    ? result.breakdown
-    : {};
-  const breakdown: Record<string, any> = {};
-  let awardedPoints = 0;
-  let assessableWeight = 0;
-  let verifiedAssessableCategories = 0;
+// ─── Category status determination ───
 
-  for (const category of SCORING_CATEGORIES) {
-    const maximum = Number(weights[category]) || 0;
-    const isAssessable = assessable.has(category);
-    const requested = Number(rawBreakdown[category]);
-    const hasVerifiedEvidence = verifiedCategories.has(category);
-    const score = isAssessable && hasVerifiedEvidence && Number.isFinite(requested)
-      ? Math.min(maximum, Math.max(0, requested))
-      : 0;
+type CategoryStatus = "Verified" | "Partially Verified" | "Gap" | "Requirement Not Stated" | "Insufficient Job Information" | "Not Applicable";
 
-    breakdown[category] = {
-      score: Math.round(score * 10) / 10,
-      maximum,
-      status: !isAssessable
-        ? "Not assessed"
-        : hasVerifiedEvidence
-          ? "Verified"
-          : "Needs evidence",
-    };
-    if (isAssessable) assessableWeight += maximum;
-    if (isAssessable && hasVerifiedEvidence) verifiedAssessableCategories += 1;
-    awardedPoints += score;
+function determineCategoryStatus(
+  category: string,
+  llmAnalysis: any,
+  verifiedCategories: Set<string>,
+  partiallyVerifiedCategories: Set<string>,
+  jobContentStatus: string
+): { status: CategoryStatus; score: number; maximum: number; requirement: string; explanation: string; pointsWithheldReason: string; unresolvedQuestion: string } {
+  const maximum = Number(DEFAULT_WEIGHTS[category]) || 0;
+  const requirement = String(llmAnalysis?.requirement || "");
+  const requirementStated = llmAnalysis?.requirement_stated !== false;
+  const llmStatus = String(llmAnalysis?.preliminary_status || "");
+  const explanation = String(llmAnalysis?.explanation || "");
+  const pointsWithheldReason = String(llmAnalysis?.points_withheld_reason || "");
+  const unresolvedQuestion = String(llmAnalysis?.unresolved_question || "");
+  const llmPoints = Number(llmAnalysis?.awarded_points) || 0;
+
+  // If the job content is incomplete and the LLM couldn't assess this category
+  if (llmStatus === "Insufficient Job Information" || (jobContentStatus !== "Complete" && !requirementStated && !llmStatus)) {
+    return { status: "Insufficient Job Information", score: 0, maximum, requirement, explanation: explanation || "The extracted vacancy is too incomplete to determine the requirement in this category.", pointsWithheldReason: "", unresolvedQuestion };
   }
 
-  return {
-    breakdown,
-    totalScore: assessableWeight && verifiedAssessableCategories
-      ? Math.round((awardedPoints / assessableWeight) * 100)
-      : null,
-  };
+  // If the LLM says Not Applicable, respect it (with the explanation)
+  if (llmStatus === "Not Applicable") {
+    return { status: "Not Applicable", score: 0, maximum: 0, requirement: "", explanation: explanation || "This category does not apply to this vacancy.", pointsWithheldReason: "", unresolvedQuestion };
+  }
+
+  // If the job doesn't state a requirement in this category
+  if (!requirementStated || llmStatus === "Requirement Not Stated") {
+    return { status: "Requirement Not Stated", score: 0, maximum, requirement: "", explanation: "The vacancy does not state a requirement in this category.", pointsWithheldReason: "", unresolvedQuestion: "" };
+  }
+
+  // If the requirement is stated, check for verified evidence
+  const hasVerified = verifiedCategories.has(category);
+  const hasPartial = partiallyVerifiedCategories.has(category);
+
+  if (hasVerified && !hasPartial) {
+    // Fully verified — use LLM points capped at maximum
+    const score = Math.min(maximum, Math.max(0, llmPoints));
+    return { status: "Verified", score: Math.round(score * 10) / 10, maximum, requirement, explanation, pointsWithheldReason, unresolvedQuestion };
+  }
+
+  if (hasVerified && hasPartial) {
+    // Partially verified — some evidence but not all
+    const score = Math.min(maximum, Math.max(0, llmPoints * 0.7));
+    return { status: "Partially Verified", score: Math.round(score * 10) / 10, maximum, requirement, explanation, pointsWithheldReason: unresolvedQuestion || "Some requirements supported by verified evidence, others not.", unresolvedQuestion };
+  }
+
+  // Requirement stated but no verified evidence → Gap
+  return { status: "Gap", score: 0, maximum, requirement, explanation: explanation || "The requirement is clear but the candidate lacks verified evidence.", pointsWithheldReason: "No verified candidate evidence for this requirement.", unresolvedQuestion };
 }
 
-function normaliseMatchResult(result: any, contextData: any, weights: any) {
-  const strong = verifyEvidenceItems(result?.strong_matches, contextData);
-  const partial = verifyEvidenceItems(result?.partial_matches, contextData);
-  const transferable = verifyEvidenceItems(result?.transferable_matches, contextData);
+function normaliseMatchResult(
+  result: any,
+  contextData: any,
+  weights: any,
+  jobContentStatus: string
+) {
+  const strong = verifyEvidenceItems(
+    (result?.strong_matches || []).map((m: any) => ({ ...m, match_type: "strong" })),
+    contextData
+  );
+  const partial = verifyEvidenceItems(
+    (result?.partial_matches || []).map((m: any) => ({ ...m, match_type: "partial" })),
+    contextData
+  );
+  const transferable = verifyEvidenceItems(
+    (result?.transferable_matches || []).map((m: any) => ({ ...m, match_type: "transferable" })),
+    contextData
+  );
   const verifiedCategories = new Set([
     ...strong.verifiedCategories,
     ...partial.verifiedCategories,
     ...transferable.verifiedCategories,
   ]);
+  const partiallyVerifiedCategories = new Set([
+    ...partial.partiallyVerifiedCategories,
+    ...transferable.partiallyVerifiedCategories,
+  ]);
   const rejected = [...strong.rejected, ...partial.rejected, ...transferable.rejected];
-  const { breakdown, totalScore } = normaliseBreakdown(result, weights, verifiedCategories);
-  const hasScore = totalScore !== null;
   const questions = Array.isArray(result?.questions) ? result.questions : [];
-
-  // Check for hard stops — if any, recommendation is "Reject"
   const hardStops = Array.isArray(result?.hard_stops) ? result.hard_stops : [];
   const hasHardStop = hardStops.length > 0;
 
+  // Build per-category analysis
+  const llmCategoryAnalysis = Array.isArray(result?.category_analysis) ? result.category_analysis : [];
+  const categoryAnalysisMap = new Map<string, any>();
+  for (const ca of llmCategoryAnalysis) {
+    if (ca?.category && SCORING_CATEGORIES.includes(ca.category)) {
+      categoryAnalysisMap.set(ca.category, ca);
+    }
+  }
+
+  const breakdown: Record<string, any> = {};
+  const categoryAnalysis: Record<string, any> = {};
+  let awardedPoints = 0;
+  let denominatorWeight = 0;
+  let assessedCategories = 0;
+  let totalCategories = SCORING_CATEGORIES.length;
+
+  for (const category of SCORING_CATEGORIES) {
+    const llmAnalysis = categoryAnalysisMap.get(category) || {};
+    const { status, score, maximum, requirement, explanation, pointsWithheldReason, unresolvedQuestion } =
+      determineCategoryStatus(category, llmAnalysis, verifiedCategories, partiallyVerifiedCategories, jobContentStatus);
+
+    breakdown[category] = { score, maximum, status };
+    categoryAnalysis[category] = {
+      requirement,
+      status,
+      score,
+      maximum: maximum,
+      explanation,
+      points_withheld_reason: pointsWithheldReason,
+      unresolved_question: unresolvedQuestion,
+      evidence_source: verifiedCategories.has(category) ? "Candidate Profile / Master CV" : "",
+    };
+
+    awardedPoints += score;
+
+    // Denominator: exclude "Requirement Not Stated" and "Not Applicable"
+    if (status !== "Requirement Not Stated" && status !== "Not Applicable") {
+      denominatorWeight += maximum;
+    }
+
+    // Coverage: categories with a definitive status
+    if (status !== "Insufficient Job Information") {
+      assessedCategories++;
+    }
+  }
+
+  // Calculate total score using the full model
+  const totalScore = denominatorWeight > 0
+    ? Math.round((awardedPoints / denominatorWeight) * 100)
+    : 0;
+
+  // Calculate coverage
+  const coverage = Math.round((assessedCategories / totalCategories) * 100);
+
+  // Check for unresolved material questions
+  const allQuestions = [...questions, ...rejected.map((claim) => `Unverified AI claim — confirm before use: ${claim}`)];
+  const hasMaterialQuestions = allQuestions.some((q) => {
+    const lower = q.toLowerCase();
+    return MATERIAL_QUESTIONS.some((mq) => lower.includes(mq));
+  });
+
+  // Determine assessment status
+  let assessmentStatus: string;
+  if (hasHardStop) {
+    assessmentStatus = "Needs Review";
+  } else if (jobContentStatus === "Restricted Source") {
+    assessmentStatus = "Restricted Source";
+  } else if (jobContentStatus !== "Complete") {
+    assessmentStatus = "Preliminary";
+  } else if (coverage < 75) {
+    assessmentStatus = "Preliminary";
+  } else {
+    // Check required categories for Final
+    const essentialSkillsStatus = breakdown.weight_essential_skills?.status;
+    const responsibilitiesStatus = breakdown.weight_responsibilities?.status;
+    const locationStatus = breakdown.weight_location?.status;
+    const requiredAssessed = essentialSkillsStatus && essentialSkillsStatus !== "Insufficient Job Information"
+      && responsibilitiesStatus && responsibilitiesStatus !== "Insufficient Job Information"
+      && locationStatus && locationStatus !== "Insufficient Job Information";
+
+    if (requiredAssessed && !hasMaterialQuestions) {
+      assessmentStatus = "Final";
+    } else {
+      assessmentStatus = "Preliminary";
+    }
+  }
+
+  // Apply score caps
+  let finalScore = totalScore;
+  let recommendation: string;
+
+  if (hasHardStop) {
+    recommendation = "Reject";
+  } else if (assessmentStatus === "Preliminary" || hasMaterialQuestions) {
+    // Cap at 79 — cannot be "Excellent Match"
+    finalScore = Math.min(finalScore, 79);
+    recommendation = recommendationBand(finalScore) || "Do Not Apply";
+  } else {
+    recommendation = recommendationBand(finalScore) || "Do Not Apply";
+  }
+
+  // Verified fit: points from Verified categories only
+  const verifiedFit = Math.round(
+    Object.values(breakdown)
+      .filter((b: any) => b.status === "Verified")
+      .reduce((sum: number, b: any) => sum + b.score, 0)
+  );
+
   return {
-    total_score: hasScore ? totalScore : 0,
-    recommendation: hasHardStop
-      ? "Reject"
-      : hasScore
-        ? recommendationBand(totalScore)
-        : "Do Not Apply",
-    confidence: !hasScore
+    total_score: finalScore,
+    verified_fit: verifiedFit,
+    assessment_coverage: coverage,
+    assessment_status: assessmentStatus,
+    recommendation,
+    confidence: !assessedCategories
       ? "Insufficient evidence"
       : rejected.length
         ? "Low"
@@ -274,31 +422,33 @@ function normaliseMatchResult(result: any, contextData: any, weights: any) {
     transferable_strengths: transferable.verified,
     missing_requirements: Array.isArray(result?.missing_requirements) ? result.missing_requirements : [],
     concerns: Array.isArray(result?.concerns) ? result.concerns : [],
-    questions: [
-      ...questions,
-      ...rejected.map((claim) => `Unverified AI claim — confirm before use: ${claim}`),
-    ],
+    questions: allQuestions,
     hard_stops: hardStops,
     suggested_cv: String(result?.suggested_cv || contextData.master_cv.name || ""),
     application_priority: String(result?.application_priority || ""),
     suggested_deadline: String(result?.suggested_deadline || ""),
-    recommended_action: !hasScore
-      ? "Review the Candidate Profile and Master CV evidence before making an application decision."
-      : String(result?.recommended_action || ""),
+    recommended_action: assessmentStatus === "Preliminary"
+      ? "Preliminary review — full job information required for a final assessment."
+      : assessmentStatus === "Restricted Source"
+        ? "Full vacancy content is required for a final assessment."
+        : String(result?.recommended_action || ""),
     breakdown,
+    category_analysis: categoryAnalysis,
   };
 }
 
 /**
  * Run AI job matching. Works in both frontend and backend.
- * @param invokeLLM - Function that calls InvokeLLM (frontend: base44.integrations.Core.InvokeLLM, backend: base44.asServiceRole.integrations.Core.InvokeLLM)
+ * @param invokeLLM - Function that calls InvokeLLM
+ * @param jobContentStatus - The content quality status of the job
  */
 export async function runJobMatch(
   job: any,
   candidate: any,
   cvs: any[],
   scoring: any,
-  invokeLLM: (params: any) => Promise<any>
+  invokeLLM: (params: any) => Promise<any>,
+  jobContentStatus: string = "Complete"
 ): Promise<any> {
   const contextData = buildCandidateContextData(candidate, cvs);
   const ctx = JSON.stringify(contextData, null, 2);
@@ -312,12 +462,24 @@ Distinguish genuine Data Governance roles from roles that are primarily data eng
 Apply these scoring weights (they sum to 100):
 ${JSON.stringify(weights)}
 
-For breakdown, return the awarded points for every category, capped at that category's configured weight. A category may receive positive points only when at least one returned positive evidence item supports that category. List every category that can be compared from the supplied job and candidate information in assessable_categories. A job description plus a populated Candidate Profile or Master CV must produce at least one assessable category; do not return an empty assessment merely because some fields are unknown. In particular, assess experience, essential skills, seniority/leadership and responsibilities whenever the supplied texts discuss them. Do not treat an unknown salary, qualification, location or other missing fact as a mismatch. The application will independently verify the evidence, calculate the final normalised score across assessable categories and derive the recommendation.
+For EACH of the 8 scoring categories, return a category_analysis entry with:
+- category: the scoring category key
+- requirement: the specific requirement stated in the job (or empty if not stated)
+- requirement_stated: true if the job mentions a requirement in this category, false if it does not
+- preliminary_status: one of "Verified" (candidate meets the requirement with evidence), "Partially Verified" (some but not all), "Gap" (requirement clear but candidate lacks evidence), "Requirement Not Stated" (job does not mention this), "Insufficient Job Information" (extracted vacancy too incomplete to determine), "Not Applicable" (genuinely does not apply)
+- explanation: brief explanation of the assessment
+- points_withheld_reason: why points were withheld if applicable
+- unresolved_question: any material question that must be resolved before a final assessment
+- awarded_points: points awarded for this category (0 if gap, requirement not stated, or insufficient info)
 
-Apply hard-stop rules where relevant (do not delete the job, just flag in hard_stops and lower the relevant category scores). Hard stops include:
+Also return strong_matches, partial_matches, and transferable_matches with evidence items. Each evidence item must include the category it supports. A category may receive positive points only when at least one verified evidence item supports it.
+
+Apply hard-stop rules where relevant (flag in hard_stops, do not delete the job). Hard stops include:
 ${JSON.stringify(DEFAULT_HARD_STOPS)}
 
-For missing_requirements list only requirements the available evidence shows the candidate lacks. Put unknowns in questions instead. Suggested CV must be the supplied master CV name. Suggested deadline should be the closing date if known else within 7 days. Return JSON per schema.
+For missing_requirements list only requirements the available evidence shows the candidate lacks. Put unknowns in questions instead. Suggested CV must be the supplied master CV name. Suggested deadline should be the closing date if known else within 7 days.
+
+IMPORTANT: If the job content is incomplete (short description, missing sections), use "Insufficient Job Information" for categories that cannot be assessed. Do not guess or infer requirements that are not stated in the job text.
 
 CANDIDATE:
 ${ctx}
@@ -339,37 +501,39 @@ ${JSON.stringify(job)}`,
         application_priority: { type: "string" },
         suggested_deadline: { type: "string" },
         recommended_action: { type: "string" },
-        assessable_categories: {
+        category_analysis: {
           type: "array",
-          items: { type: "string", enum: SCORING_CATEGORIES },
-          minItems: 1,
-        },
-        breakdown: {
-          type: "object",
-          properties: Object.fromEntries(
-            SCORING_CATEGORIES.map((category) => [category, { type: "number" }])
-          ),
-          required: SCORING_CATEGORIES,
+          items: {
+            type: "object",
+            properties: {
+              category: { type: "string", enum: SCORING_CATEGORIES },
+              requirement: { type: "string" },
+              requirement_stated: { type: "boolean" },
+              preliminary_status: {
+                type: "string",
+                enum: ["Verified", "Partially Verified", "Gap", "Requirement Not Stated", "Insufficient Job Information", "Not Applicable"],
+              },
+              explanation: { type: "string" },
+              points_withheld_reason: { type: "string" },
+              unresolved_question: { type: "string" },
+              awarded_points: { type: "number" },
+            },
+            required: ["category", "requirement_stated", "preliminary_status"],
+          },
         },
       },
-      required: [
-        "strong_matches",
-        "partial_matches",
-        "transferable_matches",
-        "assessable_categories",
-        "breakdown",
-      ],
+      required: ["strong_matches", "partial_matches", "transferable_matches", "category_analysis"],
     },
   });
 
   if (
     !res ||
     typeof res !== "object" ||
-    !Array.isArray(res.assessable_categories) ||
-    res.assessable_categories.length === 0
+    !Array.isArray(res.category_analysis) ||
+    res.category_analysis.length === 0
   ) {
     throw new Error("The AI returned an incomplete match assessment. Please run the analysis again.");
   }
 
-  return normaliseMatchResult(res, contextData, weights);
+  return normaliseMatchResult(res, contextData, weights, jobContentStatus);
 }
