@@ -98,7 +98,8 @@ export default function JobDetail() {
   const [match, setMatch] = useState(null);
   const [loading, setLoading] = useState(true);
   const [scoring, setScoring] = useState(null);
-  const [matching, setMatching] = useState(false);
+  const [runningJobId, setRunningJobId] = useState(null);
+  const [matchError, setMatchError] = useState(null);
   const { data: candidates, loading: candidatesLoading } = useCollection(
     "Candidate",
     () => listOwnedRecords("Candidate")
@@ -107,7 +108,7 @@ export default function JobDetail() {
     "CV",
     () => listOwnedRecords("CV")
   );
-  const { data: matches } = useCollection(
+  const { data: matches, refetch: refetchMatches } = useCollection(
     "JobMatch",
     () => listOwnedRecords("JobMatch", { job_id: id }, "-created_date", 5),
     [id]
@@ -129,6 +130,12 @@ export default function JobDetail() {
   }, [id]);
 
   useEffect(() => {
+    setMatch(null);
+    setMatchError(null);
+    setRunningJobId(null);
+  }, [id]);
+
+  useEffect(() => {
     setMatch(matches[0] || null);
   }, [matches]);
 
@@ -147,23 +154,23 @@ export default function JobDetail() {
       toast.error("Add the job description or requirements before running match analysis.");
       return;
     }
-    setMatching(true);
-    const t = toast.loading("Analysing match…");
+
+    const targetJobId = id;
+    setRunningJobId(targetJobId);
+    setMatchError(null);
+    const t = toast.loading("Analysing this job…");
     try {
       const result = await withTimeout(
         analyseJobMatch(job, candidate, cvs, scoring, job.job_content_status || "Complete"),
         MATCH_TIMEOUT_MS,
         "Match analysis timed out. Please try again."
       );
-      const payload = { candidate_id: candidate.id, job_id: id, ...result };
+      const payload = { candidate_id: candidate.id, job_id: targetJobId, ...result };
       const created = await createOwnedRecord("JobMatch", payload);
-      setMatch(created);
-      setMatching(false);
-      toast.success("Match analysis saved", { id: t });
 
       try {
         await withTimeout(
-          base44.entities.Job.update(id, {
+          base44.entities.Job.update(targetJobId, {
             match_score: result.total_score,
             recommendation: result.recommendation,
             last_match_date: new Date().toISOString(),
@@ -171,18 +178,31 @@ export default function JobDetail() {
           JOB_UPDATE_TIMEOUT_MS,
           "Job summary update timed out."
         );
-        setJob((current) => ({
+      } catch {
+        // Non-fatal: the JobMatch was saved; the Job list score can be updated on next refresh
+      }
+
+      if (targetJobId === id) {
+        setMatch(created);
+        setJob((current) => current ? ({
           ...current,
           match_score: result.total_score,
           recommendation: result.recommendation,
-        }));
-      } catch {
-        toast.error("Analysis saved, but the Jobs list score could not be updated. Refresh and try again.");
+          last_match_date: new Date().toISOString(),
+        }) : current);
+        toast.success("Match analysis updated successfully.", { id: t });
+        refetchMatches();
+      } else {
+        toast.success("Match analysis saved.", { id: t });
       }
     } catch (e) {
-      toast.error(e?.message || "Match analysis failed. Please try again.", { id: t });
+      const message = e?.message || "Match analysis could not be completed. Please try again.";
+      if (targetJobId === id) {
+        setMatchError(message);
+      }
+      toast.error(message, { id: t });
     } finally {
-      setMatching(false);
+      setRunningJobId((current) => current === targetJobId ? null : current);
     }
   }
 
@@ -210,24 +230,26 @@ export default function JobDetail() {
   }
 
   async function enrichAndReassess() {
-    setMatching(true);
+    const targetJobId = id;
+    setRunningJobId(targetJobId);
     const t = toast.loading("Enriching and reassessing…");
     try {
-      const res = await base44.functions.invoke("enrichAndReassess", { job_id: id });
+      const res = await base44.functions.invoke("enrichAndReassess", { job_id: targetJobId });
       if (res.summary) {
         toast.success(`Enriched: ${res.summary.enriched}, Reassessed: ${res.summary.reassessed}`, { id: t });
-        // Reload job and matches
-        const j = await base44.entities.Job.get(id);
-        setJob(j);
-        const newMatches = await listOwnedRecords("JobMatch", { job_id: id }, "-created_date", 5);
-        setMatch(newMatches[0] || null);
+        if (targetJobId === id) {
+          const j = await base44.entities.Job.get(targetJobId);
+          setJob(j);
+          const newMatches = await listOwnedRecords("JobMatch", { job_id: targetJobId }, "-created_date", 5);
+          setMatch(newMatches[0] || null);
+        }
       } else {
         toast.error(res.error || "Enrichment failed", { id: t });
       }
     } catch (e) {
       toast.error(e?.message || "Enrichment failed", { id: t });
     } finally {
-      setMatching(false);
+      setRunningJobId((current) => current === targetJobId ? null : current);
     }
   }
 
@@ -291,8 +313,9 @@ export default function JobDetail() {
           <SectionCard
             title="AI Match Analysis"
             description="Positive match claims are shown only when their evidence can be verified in your profile or Master CV."
-            actions={<button onClick={runMatch} disabled={matching} className="inline-flex items-center gap-1.5 rounded-lg bg-primary text-primary-foreground px-3 py-1.5 text-sm font-medium hover:bg-primary/90 disabled:opacity-50"><Sparkles className="h-3.5 w-3.5" /> {matching ? "Analysing…" : match ? "Run Again" : "Run Analysis"}</button>}
+            actions={<button onClick={runMatch} disabled={runningJobId === id} className="inline-flex items-center gap-1.5 rounded-lg bg-primary text-primary-foreground px-3 py-1.5 text-sm font-medium hover:bg-primary/90 disabled:opacity-50"><Sparkles className="h-3.5 w-3.5" /> {runningJobId === id ? "Analysing…" : match ? "Run Again" : "Run Analysis"}</button>}
           >
+            {matchError && <div className="mb-4"><Notice tone="rose">{matchError}</Notice></div>}
             {match ? (
               <div className="space-y-5">
                 <div className="flex flex-wrap items-center gap-4">
@@ -352,7 +375,7 @@ export default function JobDetail() {
                 )}
               </div>
             ) : (
-              <EmptyState title="No match analysis yet" description="Run the AI match analysis to score this job against your profile, identify gaps and get a recommendation." action={<button onClick={runMatch} disabled={matching} className="inline-flex items-center gap-1.5 rounded-lg bg-primary text-primary-foreground px-3 py-2 text-sm font-medium disabled:opacity-50"><Sparkles className="h-4 w-4" /> {matching ? "Analysing…" : "Run Match Analysis"}</button>} />
+              <EmptyState title="No match analysis yet" description="Run the AI match analysis to score this job against your profile, identify gaps and get a recommendation." action={<button onClick={runMatch} disabled={runningJobId === id} className="inline-flex items-center gap-1.5 rounded-lg bg-primary text-primary-foreground px-3 py-2 text-sm font-medium disabled:opacity-50"><Sparkles className="h-4 w-4" /> {runningJobId === id ? "Analysing…" : "Run Match Analysis"}</button>} />
             )}
           </SectionCard>
 
