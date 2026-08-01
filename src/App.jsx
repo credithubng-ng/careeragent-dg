@@ -12,6 +12,7 @@ import Dashboard from './pages/Dashboard';
 import TodaysPriorities from './pages/TodaysPriorities';
 import Jobs from './pages/Jobs';
 import JobDetail from './pages/JobDetail';
+import JobCorrect from './pages/JobCorrect';
 import JobForm from './pages/JobForm';
 import JobImport from './pages/JobImport';
 import Applications from './pages/Applications';
@@ -72,6 +73,7 @@ const AuthenticatedApp = () => {
           <Route path="/jobs/new" element={<JobForm />} />
           <Route path="/jobs/import" element={<JobImport />} />
           <Route path="/jobs/:id" element={<JobDetail />} />
+          <Route path="/jobs/:id/correct" element={<JobCorrect />} />
           <Route path="/jobs/:id/edit" element={<JobForm />} />
           <Route path="/applications" element={<Applications />} />
           <Route path="/studio" element={<ApplicationStudio />} />

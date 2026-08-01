@@ -5,7 +5,7 @@ import { useCollection } from "@/lib/entityHooks";
 import { PageHeader, SectionCard, Loading, EmptyState, StatusBadge, Notice } from "@/components/ui-kit";
 import { ukDate, daysUntil, gbp } from "@/lib/format";
 import { analyseJobMatch, getUsableCandidateCVs } from "@/lib/careerAI";
-import { ArrowLeft, Sparkles, Flame, Check, X, HelpCircle, AlertTriangle, Wand2, Plus, ExternalLink, CalendarPlus } from "lucide-react";
+import { ArrowLeft, Sparkles, Flame, Check, X, HelpCircle, AlertTriangle, Wand2, Plus, ExternalLink, CalendarPlus, Pencil, Wrench, AlertCircle } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { createOwnedRecord, listOwnedRecords as sharedListOwned } from "@/lib/ownedEntities";
 import { rankOpportunity, OPPORTUNITY_LEVELS } from "@/lib/opportunityRanking";
@@ -258,6 +258,9 @@ export default function JobDetail() {
 
   const closeDays = daysUntil(job.closing_date);
   const actions = [
+    { label: "Edit Job", icon: Pencil, onClick: () => navigate(`/jobs/${id}/correct`), tone: "primary" },
+    { label: "Correct Extraction", icon: Wrench, onClick: () => navigate(`/jobs/${id}/correct?tab=url`), tone: "primary" },
+    { label: "Wrong Job Captured", icon: AlertCircle, onClick: () => navigate(`/jobs/${id}/correct?mode=wrong`), tone: "red" },
     { label: "Mark High Priority", icon: Flame, onClick: () => setStatus("High Priority"), tone: "violet" },
     { label: "Apply", icon: Check, onClick: () => setStatus("Apply"), tone: "green" },
     { label: "Maybe", icon: HelpCircle, onClick: () => setStatus("Maybe"), tone: "amber" },
@@ -316,6 +319,21 @@ export default function JobDetail() {
             actions={<button onClick={runMatch} disabled={runningJobId === id} className="inline-flex items-center gap-1.5 rounded-lg bg-primary text-primary-foreground px-3 py-1.5 text-sm font-medium hover:bg-primary/90 disabled:opacity-50"><Sparkles className="h-3.5 w-3.5" /> {runningJobId === id ? "Analysing…" : match ? "Run Again" : "Run Analysis"}</button>}
           >
             {matchError && <div className="mb-4"><Notice tone="rose">{matchError}</Notice></div>}
+            {job.match_status === "Needs Reanalysis" && (
+              <div className="mb-4">
+                <Notice tone="amber">
+                  <div className="flex items-start gap-2">
+                    <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                    <div>
+                      <p className="font-medium">The job details have changed. The previous match analysis may no longer be accurate.</p>
+                      <button onClick={runMatch} disabled={runningJobId === id} className="mt-1 text-xs font-medium text-amber-800 underline disabled:opacity-50">
+                        Run Match Again
+                      </button>
+                    </div>
+                  </div>
+                </Notice>
+              </div>
+            )}
             {match ? (
               <div className="space-y-5">
                 <div className="flex flex-wrap items-center gap-4">
@@ -393,6 +411,7 @@ export default function JobDetail() {
           <SectionCard title="Job Details">
             <dl className="space-y-2 text-sm">
               {[
+                ["Version", job.job_version ? `Version ${job.job_version}` : "Version 1"], ["Match Status", job.match_status || "Not Scored"],
                 ["Job Content Status", job.job_content_status], ["Enrichment Status", job.enrichment_status], ["Enrichment Method", job.enrichment_method],
                 ["Extraction Confidence", job.extraction_confidence], ["Employer", job.employer], ["Recruitment Agency", job.recruitment_agency], ["Source", job.job_source_name],
                 ["Reference", job.job_reference], ["Location", job.location], ["Country", job.country],

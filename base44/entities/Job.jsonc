@@ -414,6 +414,22 @@
         "Needs Review",
         "Failed"
       ]
+    },
+    "job_version": {
+      "type": "number",
+      "default": 1
+    },
+    "match_status": {
+      "type": "string",
+      "enum": [
+        "Current",
+        "Needs Reanalysis",
+        "Not Scored"
+      ],
+      "default": "Not Scored"
+    },
+    "raw_extracted_text": {
+      "type": "string"
     }
   },
   "required": [

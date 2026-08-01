@@ -27,6 +27,7 @@
         "Preliminary",
         "Final",
         "Needs Review",
+        "Needs Reanalysis",
         "Restricted Source",
         "Failed"
       ],

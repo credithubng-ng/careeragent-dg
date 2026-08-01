@@ -1,0 +1,138 @@
+{
+  "name": "JobSourceHistory",
+  "type": "object",
+  "properties": {
+    "owner_email": {
+      "type": "string",
+      "format": "email"
+    },
+    "candidate_id": {
+      "type": "string"
+    },
+    "job_id": {
+      "type": "string"
+    },
+    "version_number": {
+      "type": "number",
+      "default": 1
+    },
+    "previous_source_type": {
+      "type": "string"
+    },
+    "previous_url": {
+      "type": "string"
+    },
+    "new_source_type": {
+      "type": "string"
+    },
+    "new_url": {
+      "type": "string"
+    },
+    "edit_method": {
+      "type": "string",
+      "enum": [
+        "Manual Edit",
+        "Replacement URL",
+        "Paste Replacement",
+        "PDF Replacement",
+        "AI Re-extraction",
+        "Wrong Job Captured"
+      ]
+    },
+    "edited_by": {
+      "type": "string"
+    },
+    "edit_date": {
+      "type": "string"
+    },
+    "fields_changed": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "previous_values": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "new_values": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "reason_for_correction": {
+      "type": "string",
+      "enum": [
+        "Wrong Job Captured",
+        "Related Jobs Mixed",
+        "Incomplete Description",
+        "Incorrect Employer",
+        "Incorrect Job Title",
+        "Incorrect Salary",
+        "Incorrect Location",
+        "Source Page Changed",
+        "Better Source Available",
+        "Manual Correction",
+        "Other"
+      ]
+    },
+    "correction_notes": {
+      "type": "string"
+    },
+    "extraction_status": {
+      "type": "string",
+      "enum": [
+        "Success",
+        "Partial",
+        "Failed",
+        "Manual"
+      ]
+    },
+    "extraction_confidence": {
+      "type": "string",
+      "enum": [
+        "High",
+        "Medium",
+        "Low"
+      ]
+    },
+    "job_snapshot": {
+      "type": "object",
+      "additionalProperties": true
+    }
+  },
+  "required": [
+    "job_id"
+  ],
+  "rls": {
+    "create": {
+      "data.owner_email": "{{user.email}}"
+    },
+    "read": {
+      "$or": [
+        {
+          "data.owner_email": "{{user.email}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "data.owner_email": "{{user.email}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "data.owner_email": "{{user.email}}"
+    }
+  }
+}
