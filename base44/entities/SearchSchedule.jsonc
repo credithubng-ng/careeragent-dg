@@ -1,0 +1,127 @@
+{
+  "name": "SearchSchedule",
+  "type": "object",
+  "properties": {
+    "owner_email": {
+      "type": "string",
+      "format": "email"
+    },
+    "candidate_id": {
+      "type": "string"
+    },
+    "schedule_name": {
+      "type": "string"
+    },
+    "source_id": {
+      "type": "string"
+    },
+    "source_name": {
+      "type": "string"
+    },
+    "configured_frequency": {
+      "type": "string",
+      "enum": [
+        "Hourly",
+        "Every 2 Hours",
+        "Every 4 Hours",
+        "Every 6 Hours",
+        "Every 12 Hours",
+        "Daily",
+        "Weekdays Only",
+        "Weekends Only",
+        "Manual Only"
+      ],
+      "default": "Manual Only"
+    },
+    "actual_supported_frequency": {
+      "type": "string",
+      "enum": [
+        "Hourly",
+        "Every 2 Hours",
+        "Every 4 Hours",
+        "Every 6 Hours",
+        "Every 12 Hours",
+        "Daily",
+        "Weekdays Only",
+        "Weekends Only",
+        "Manual Only"
+      ],
+      "default": "Manual Only"
+    },
+    "last_run": {
+      "type": "string"
+    },
+    "next_run": {
+      "type": "string"
+    },
+    "duration_seconds": {
+      "type": "number"
+    },
+    "jobs_found": {
+      "type": "number",
+      "default": 0
+    },
+    "jobs_imported": {
+      "type": "number",
+      "default": 0
+    },
+    "duplicates": {
+      "type": "number",
+      "default": 0
+    },
+    "strong_matches": {
+      "type": "number",
+      "default": 0
+    },
+    "failures": {
+      "type": "number",
+      "default": 0
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "Active",
+        "Paused",
+        "Configuration Required",
+        "Error",
+        "Not Yet Implemented"
+      ],
+      "default": "Not Yet Implemented"
+    }
+  },
+  "required": [
+    "schedule_name"
+  ],
+  "rls": {
+    "create": {
+      "data.owner_email": "{{user.email}}"
+    },
+    "read": {
+      "$or": [
+        {
+          "data.owner_email": "{{user.email}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "data.owner_email": "{{user.email}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "data.owner_email": "{{user.email}}"
+    }
+  }
+}

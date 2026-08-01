@@ -1,0 +1,129 @@
+{
+  "name": "DiscoveryRun",
+  "type": "object",
+  "properties": {
+    "owner_email": {
+      "type": "string",
+      "format": "email"
+    },
+    "candidate_id": {
+      "type": "string"
+    },
+    "agent_id": {
+      "type": "string"
+    },
+    "agent_name": {
+      "type": "string"
+    },
+    "source_id": {
+      "type": "string"
+    },
+    "source_name": {
+      "type": "string"
+    },
+    "start_time": {
+      "type": "string"
+    },
+    "end_time": {
+      "type": "string"
+    },
+    "duration_seconds": {
+      "type": "number"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "Running",
+        "Completed",
+        "Failed",
+        "Partially Completed",
+        "Skipped"
+      ],
+      "default": "Running"
+    },
+    "records_checked": {
+      "type": "number",
+      "default": 0
+    },
+    "jobs_found": {
+      "type": "number",
+      "default": 0
+    },
+    "jobs_imported": {
+      "type": "number",
+      "default": 0
+    },
+    "jobs_updated": {
+      "type": "number",
+      "default": 0
+    },
+    "duplicates": {
+      "type": "number",
+      "default": 0
+    },
+    "strong_matches": {
+      "type": "number",
+      "default": 0
+    },
+    "weak_matches": {
+      "type": "number",
+      "default": 0
+    },
+    "errors": {
+      "type": "string"
+    },
+    "error_summary": {
+      "type": "string"
+    },
+    "trigger_type": {
+      "type": "string",
+      "enum": [
+        "Scheduled",
+        "Manual",
+        "Email Event",
+        "Browser Extension",
+        "API",
+        "Retry"
+      ],
+      "default": "Manual"
+    },
+    "triggered_by": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "agent_name"
+  ],
+  "rls": {
+    "create": {
+      "data.owner_email": "{{user.email}}"
+    },
+    "read": {
+      "$or": [
+        {
+          "data.owner_email": "{{user.email}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "data.owner_email": "{{user.email}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "data.owner_email": "{{user.email}}"
+    }
+  }
+}

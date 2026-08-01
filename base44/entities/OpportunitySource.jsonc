@@ -1,0 +1,216 @@
+{
+  "name": "OpportunitySource",
+  "type": "object",
+  "properties": {
+    "owner_email": {
+      "type": "string",
+      "format": "email"
+    },
+    "candidate_id": {
+      "type": "string"
+    },
+    "source_name": {
+      "type": "string"
+    },
+    "source_type": {
+      "type": "string",
+      "enum": [
+        "Email",
+        "Manual Entry",
+        "Paste Job Description",
+        "URL Import",
+        "PDF Upload",
+        "Browser Extension",
+        "Employer Career Site",
+        "Job Board",
+        "Recruitment Agency",
+        "Referral",
+        "API Feed",
+        "RSS Feed",
+        "Scheduled Search Agent",
+        "Other"
+      ],
+      "default": "Other"
+    },
+    "website_or_endpoint": {
+      "type": "string"
+    },
+    "email_address": {
+      "type": "string"
+    },
+    "email_folder_label": {
+      "type": "string"
+    },
+    "priority": {
+      "type": "number",
+      "default": 5
+    },
+    "enabled": {
+      "type": "boolean",
+      "default": true
+    },
+    "monitoring_status": {
+      "type": "string",
+      "enum": [
+        "Active",
+        "Paused",
+        "Manual Only",
+        "Configuration Required",
+        "Error",
+        "Archived"
+      ],
+      "default": "Configuration Required"
+    },
+    "search_frequency": {
+      "type": "string",
+      "enum": [
+        "Hourly",
+        "Every 2 Hours",
+        "Every 4 Hours",
+        "Every 6 Hours",
+        "Every 12 Hours",
+        "Daily",
+        "Weekdays Only",
+        "Weekends Only",
+        "Manual Only"
+      ],
+      "default": "Manual Only"
+    },
+    "last_checked": {
+      "type": "string"
+    },
+    "next_scheduled_check": {
+      "type": "string"
+    },
+    "last_successful_run": {
+      "type": "string"
+    },
+    "last_failed_run": {
+      "type": "string"
+    },
+    "jobs_found": {
+      "type": "number",
+      "default": 0
+    },
+    "jobs_imported": {
+      "type": "number",
+      "default": 0
+    },
+    "strong_matches": {
+      "type": "number",
+      "default": 0
+    },
+    "duplicate_jobs": {
+      "type": "number",
+      "default": 0
+    },
+    "failed_imports": {
+      "type": "number",
+      "default": 0
+    },
+    "average_match_score": {
+      "type": "number"
+    },
+    "notes": {
+      "type": "string"
+    },
+    "email_config": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "sender_domains": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "sender_emails": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "subject_keywords": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "excluded_senders": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "excluded_subject_keywords": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "max_emails_per_run": {
+          "type": "number"
+        },
+        "max_jobs_per_email": {
+          "type": "number"
+        },
+        "auto_extract_jobs": {
+          "type": "boolean"
+        },
+        "auto_run_match": {
+          "type": "boolean"
+        },
+        "auto_notify": {
+          "type": "boolean"
+        },
+        "min_match_score_for_notifications": {
+          "type": "number"
+        },
+        "mark_email_processed": {
+          "type": "boolean"
+        },
+        "archive_processed_email": {
+          "type": "boolean"
+        },
+        "leave_email_unchanged": {
+          "type": "boolean"
+        }
+      }
+    }
+  },
+  "required": [
+    "source_name"
+  ],
+  "rls": {
+    "create": {
+      "data.owner_email": "{{user.email}}"
+    },
+    "read": {
+      "$or": [
+        {
+          "data.owner_email": "{{user.email}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "data.owner_email": "{{user.email}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "data.owner_email": "{{user.email}}"
+    }
+  }
+}

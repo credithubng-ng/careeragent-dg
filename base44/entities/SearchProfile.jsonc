@@ -1,0 +1,191 @@
+{
+  "name": "SearchProfile",
+  "type": "object",
+  "properties": {
+    "owner_email": {
+      "type": "string",
+      "format": "email"
+    },
+    "candidate_id": {
+      "type": "string"
+    },
+    "profile_name": {
+      "type": "string",
+      "default": "Primary Search Profile"
+    },
+    "target_job_titles": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "title": {
+            "type": "string"
+          },
+          "priority": {
+            "type": "string",
+            "enum": [
+              "Critical",
+              "High",
+              "Medium",
+              "Low"
+            ],
+            "default": "Medium"
+          }
+        }
+      }
+    },
+    "search_keywords": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "excluded_titles": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "excluded_keywords": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "search_filters": {
+      "type": "object",
+      "additionalProperties": true,
+      "properties": {
+        "min_salary": {
+          "type": "number"
+        },
+        "preferred_salary": {
+          "type": "number"
+        },
+        "currency": {
+          "type": "string",
+          "default": "GBP"
+        },
+        "employment_types": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "work_arrangements": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "countries": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "cities": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "regions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "postcodes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "max_commute": {
+          "type": "number"
+        },
+        "willing_to_travel": {
+          "type": "boolean"
+        },
+        "willing_to_relocate": {
+          "type": "boolean"
+        },
+        "preferred_industries": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "excluded_industries": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "right_to_work_rules": {
+          "type": "string"
+        },
+        "security_clearance_rules": {
+          "type": "string"
+        },
+        "sponsorship_rules": {
+          "type": "string"
+        },
+        "seniority_level": {
+          "type": "string"
+        },
+        "notice_period": {
+          "type": "string"
+        }
+      }
+    },
+    "min_match_score_auto_import": {
+      "type": "number",
+      "default": 50
+    },
+    "min_match_score_notification": {
+      "type": "number",
+      "default": 70
+    },
+    "active": {
+      "type": "boolean",
+      "default": true
+    }
+  },
+  "required": [
+    "profile_name"
+  ],
+  "rls": {
+    "create": {
+      "data.owner_email": "{{user.email}}"
+    },
+    "read": {
+      "$or": [
+        {
+          "data.owner_email": "{{user.email}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "data.owner_email": "{{user.email}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "data.owner_email": "{{user.email}}"
+    }
+  }
+}

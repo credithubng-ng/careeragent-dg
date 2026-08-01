@@ -1,0 +1,176 @@
+{
+  "name": "TargetEmployer",
+  "type": "object",
+  "properties": {
+    "owner_email": {
+      "type": "string",
+      "format": "email"
+    },
+    "candidate_id": {
+      "type": "string"
+    },
+    "employer_name": {
+      "type": "string"
+    },
+    "industry": {
+      "type": "string"
+    },
+    "employer_priority": {
+      "type": "string",
+      "enum": [
+        "Critical",
+        "High",
+        "Medium",
+        "Low"
+      ],
+      "default": "Medium"
+    },
+    "careers_url": {
+      "type": "string"
+    },
+    "linkedin_company_url": {
+      "type": "string"
+    },
+    "recruitment_portal_type": {
+      "type": "string",
+      "enum": [
+        "Workday",
+        "Greenhouse",
+        "Lever",
+        "SmartRecruiters",
+        "SuccessFactors",
+        "Oracle Recruiting",
+        "Custom Career Site",
+        "Unknown"
+      ],
+      "default": "Unknown"
+    },
+    "headquarters": {
+      "type": "string"
+    },
+    "preferred_locations": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "work_arrangement": {
+      "type": "string"
+    },
+    "typical_relevant_roles": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "typical_salary_min": {
+      "type": "number"
+    },
+    "typical_salary_max": {
+      "type": "number"
+    },
+    "known_recruiters": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "known_hiring_managers": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "relationship_status": {
+      "type": "string"
+    },
+    "monitoring_enabled": {
+      "type": "boolean",
+      "default": false
+    },
+    "monitoring_frequency": {
+      "type": "string",
+      "enum": [
+        "Hourly",
+        "Every 2 Hours",
+        "Every 4 Hours",
+        "Every 6 Hours",
+        "Every 12 Hours",
+        "Daily",
+        "Weekdays Only",
+        "Weekends Only",
+        "Manual Only"
+      ],
+      "default": "Manual Only"
+    },
+    "last_checked": {
+      "type": "string"
+    },
+    "last_vacancy_found": {
+      "type": "string"
+    },
+    "vacancies_found": {
+      "type": "number",
+      "default": 0
+    },
+    "applications_submitted": {
+      "type": "number",
+      "default": 0
+    },
+    "interviews": {
+      "type": "number",
+      "default": 0
+    },
+    "offers": {
+      "type": "number",
+      "default": 0
+    },
+    "notes": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "Monitoring",
+        "Paused",
+        "Archived"
+      ],
+      "default": "Paused"
+    }
+  },
+  "required": [
+    "employer_name"
+  ],
+  "rls": {
+    "create": {
+      "data.owner_email": "{{user.email}}"
+    },
+    "read": {
+      "$or": [
+        {
+          "data.owner_email": "{{user.email}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "data.owner_email": "{{user.email}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "data.owner_email": "{{user.email}}"
+    }
+  }
+}

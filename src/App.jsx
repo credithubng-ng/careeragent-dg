@@ -25,6 +25,15 @@ import JobSources from './pages/JobSources';
 import SettingsPage from './pages/Settings';
 import EmailImportReview from './pages/EmailImportReview';
 import WeeklyReview from './pages/WeeklyReview';
+import OIOverview from './pages/opportunity-intelligence/Overview';
+import OISources from './pages/opportunity-intelligence/OpportunitySources';
+import OIEmployers from './pages/opportunity-intelligence/TargetEmployers';
+import OISearchProfile from './pages/opportunity-intelligence/SearchProfile';
+import OIDiscoveryRules from './pages/opportunity-intelligence/DiscoveryRules';
+import OISearchSchedules from './pages/opportunity-intelligence/SearchSchedules';
+import OIAgentConfig from './pages/opportunity-intelligence/AgentConfiguration';
+import OIDiscoveryRuns from './pages/opportunity-intelligence/DiscoveryRuns';
+import OISourcePerformance from './pages/opportunity-intelligence/SourcePerformance';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import ForgotPassword from './pages/ForgotPassword';
@@ -73,6 +82,15 @@ const AuthenticatedApp = () => {
           <Route path="/analytics" element={<Analytics />} />
           <Route path="/sources" element={<JobSources />} />
           <Route path="/email-review" element={<EmailImportReview />} />
+          <Route path="/opportunity-intelligence" element={<OIOverview />} />
+          <Route path="/opportunity-intelligence/sources" element={<OISources />} />
+          <Route path="/opportunity-intelligence/employers" element={<OIEmployers />} />
+          <Route path="/opportunity-intelligence/search-profile" element={<OISearchProfile />} />
+          <Route path="/opportunity-intelligence/rules" element={<OIDiscoveryRules />} />
+          <Route path="/opportunity-intelligence/schedules" element={<OISearchSchedules />} />
+          <Route path="/opportunity-intelligence/agents" element={<OIAgentConfig />} />
+          <Route path="/opportunity-intelligence/runs" element={<OIDiscoveryRuns />} />
+          <Route path="/opportunity-intelligence/performance" element={<OISourcePerformance />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/weekly-review" element={<WeeklyReview />} />
         </Route>

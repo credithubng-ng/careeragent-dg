@@ -24,6 +24,28 @@
     "job_source_name": {
       "type": "string"
     },
+    "source_type": {
+      "type": "string",
+      "enum": [
+        "Email",
+        "Manual Entry",
+        "Paste Job Description",
+        "URL Import",
+        "PDF Upload",
+        "Browser Extension",
+        "Employer Career Site",
+        "Job Board",
+        "Recruitment Agency",
+        "Referral",
+        "API Feed",
+        "RSS Feed",
+        "Scheduled Search Agent",
+        "Other"
+      ]
+    },
+    "original_source_name": {
+      "type": "string"
+    },
     "original_job_url": {
       "type": "string"
     },
@@ -46,6 +68,33 @@
         "Skipped"
       ],
       "default": "Not Attempted"
+    },
+    "source_email_address": {
+      "type": "string"
+    },
+    "source_email_subject": {
+      "type": "string"
+    },
+    "source_employer": {
+      "type": "string"
+    },
+    "imported_by": {
+      "type": "string"
+    },
+    "discovery_run_id": {
+      "type": "string"
+    },
+    "target_employer_id": {
+      "type": "string"
+    },
+    "browser_extension_version": {
+      "type": "string"
+    },
+    "source_confidence": {
+      "type": "number"
+    },
+    "last_source_check": {
+      "type": "string"
     },
     "job_reference": {
       "type": "string"
@@ -233,7 +282,9 @@
         "Paste",
         "PDF",
         "Manual",
-        "Email"
+        "Email",
+        "Extension Capture",
+        "Email Agent"
       ]
     },
     "extraction_status": {

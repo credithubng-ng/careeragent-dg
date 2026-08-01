@@ -1,0 +1,137 @@
+{
+  "name": "AgentConfiguration",
+  "type": "object",
+  "properties": {
+    "owner_email": {
+      "type": "string",
+      "format": "email"
+    },
+    "candidate_id": {
+      "type": "string"
+    },
+    "agent_name": {
+      "type": "string"
+    },
+    "agent_type": {
+      "type": "string",
+      "enum": [
+        "Email Discovery Agent",
+        "Target Employer Agent",
+        "Job Board Agent",
+        "Recruitment Agency Agent",
+        "Browser Extension Intake Agent",
+        "Match Analysis Agent",
+        "Notification Agent"
+      ],
+      "default": "Email Discovery Agent"
+    },
+    "enabled": {
+      "type": "boolean",
+      "default": false
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "Active",
+        "Paused",
+        "Configuration Required",
+        "Not Yet Implemented",
+        "Error"
+      ],
+      "default": "Not Yet Implemented"
+    },
+    "sources": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "search_frequency": {
+      "type": "string",
+      "enum": [
+        "Hourly",
+        "Every 2 Hours",
+        "Every 4 Hours",
+        "Every 6 Hours",
+        "Every 12 Hours",
+        "Daily",
+        "Weekdays Only",
+        "Weekends Only",
+        "Manual Only"
+      ],
+      "default": "Manual Only"
+    },
+    "max_records_per_run": {
+      "type": "number",
+      "default": 20
+    },
+    "minimum_match_score": {
+      "type": "number",
+      "default": 50
+    },
+    "auto_import": {
+      "type": "boolean",
+      "default": false
+    },
+    "auto_analyse": {
+      "type": "boolean",
+      "default": false
+    },
+    "auto_notify": {
+      "type": "boolean",
+      "default": false
+    },
+    "auto_reject": {
+      "type": "boolean",
+      "default": false
+    },
+    "require_human_review": {
+      "type": "boolean",
+      "default": true
+    },
+    "last_run": {
+      "type": "string"
+    },
+    "next_run": {
+      "type": "string"
+    },
+    "error_status": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "agent_name"
+  ],
+  "rls": {
+    "create": {
+      "data.owner_email": "{{user.email}}"
+    },
+    "read": {
+      "$or": [
+        {
+          "data.owner_email": "{{user.email}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "data.owner_email": "{{user.email}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "data.owner_email": "{{user.email}}"
+    }
+  }
+}
