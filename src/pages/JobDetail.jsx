@@ -48,12 +48,18 @@ function ListBlock({ title, items, icon: Icon, tone = "default" }) {
 }
 
 const STATUS_LABELS = {
-  "Verified": { label: "Verified", color: "text-emerald-600" },
-  "Partially Verified": { label: "Partially Verified", color: "text-amber-600" },
-  "Gap": { label: "Gap", color: "text-rose-600" },
+  // v2 statuses
+  "Strong Match": { label: "Strong Match", color: "text-emerald-600" },
+  "Partial Match": { label: "Partial Match", color: "text-amber-600" },
+  "No Match": { label: "No Match", color: "text-rose-600" },
   "Requirement Not Stated": { label: "Not Stated", color: "text-muted-foreground" },
-  "Insufficient Job Information": { label: "Insufficient Info", color: "text-amber-600" },
+  "Insufficient Information": { label: "Insufficient Info", color: "text-blue-600" },
   "Not Applicable": { label: "N/A", color: "text-muted-foreground" },
+  // v1 backward-compatible mapping
+  "Verified": { label: "Strong Match", color: "text-emerald-600" },
+  "Partially Verified": { label: "Partial Match", color: "text-amber-600" },
+  "Gap": { label: "No Match", color: "text-rose-600" },
+  "Insufficient Job Information": { label: "Insufficient Info", color: "text-blue-600" },
   "Not assessed": { label: "Not Assessed", color: "text-muted-foreground" },
   "Needs evidence": { label: "Needs Evidence", color: "text-amber-600" },
 };
@@ -319,13 +325,17 @@ export default function JobDetail() {
             actions={<button onClick={runMatch} disabled={runningJobId === id} className="inline-flex items-center gap-1.5 rounded-lg bg-primary text-primary-foreground px-3 py-1.5 text-sm font-medium hover:bg-primary/90 disabled:opacity-50"><Sparkles className="h-3.5 w-3.5" /> {runningJobId === id ? "Analysing…" : match ? "Run Again" : "Run Analysis"}</button>}
           >
             {matchError && <div className="mb-4"><Notice tone="rose">{matchError}</Notice></div>}
-            {job.match_status === "Needs Reanalysis" && (
+            {(job.match_status === "Needs Reanalysis" || (match && (!match.matching_engine_version || match.matching_engine_version < 2))) && (
               <div className="mb-4">
                 <Notice tone="amber">
                   <div className="flex items-start gap-2">
                     <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
                     <div>
-                      <p className="font-medium">The job details have changed. The previous match analysis may no longer be accurate.</p>
+                      <p className="font-medium">
+                        {match && (!match.matching_engine_version || match.matching_engine_version < 2)
+                          ? "This match was produced by an earlier scoring engine and should be reanalysed for accuracy."
+                          : "The job details have changed. The previous match analysis may no longer be accurate."}
+                      </p>
                       <button onClick={runMatch} disabled={runningJobId === id} className="mt-1 text-xs font-medium text-amber-800 underline disabled:opacity-50">
                         Run Match Again
                       </button>
