@@ -1,6 +1,16 @@
 {
-  "description": "Automatically checks for new job-alert emails every 2 hours between 06:00 and 22:00 UK time, extracts vacancies, removes duplicates, and creates Job records for review",
   "name": "Gmail Intake",
+  "description": "Processes new job-alert emails in real-time as they arrive in the connected user's Gmail, using the App User connector",
+  "trigger": {
+    "config": {
+      "trigger_type": "connector",
+      "integration_type": "gmail",
+      "events": [
+        "mailbox"
+      ]
+    },
+    "condition": "${ .trigger.data.has_new_messages == true }"
+  },
   "definition": {
     "document": {
       "dsl": "1.0.0",
@@ -15,34 +25,17 @@
           "with": {
             "function_name": "processGmailAlerts",
             "args": {
-              "mode": "incremental",
-              "maxJobs": 50
+              "mode": "webhook",
+              "message_ids": "${ .trigger.data.new_message_ids }"
             }
           },
           "then": "end",
           "x-base44": {
-            "title": "Process Gmail job alerts",
-            "description": "Check for new labelled emails and extract vacancies"
+            "title": "Process new Gmail job alerts",
+            "description": "Extract vacancies from new emails in real time"
           }
         }
       }
     ]
-  },
-  "trigger": {
-    "condition": null,
-    "config": {
-      "trigger_type": "scheduled",
-      "events": [],
-      "schedule_mode": "recurring",
-      "cron_expression": "0 6,8,10,12,14,16,18,20,22 * * *",
-      "one_time_date": null,
-      "timezone": "Europe/London",
-      "interval_value": null,
-      "interval_unit": null,
-      "interval_anchor": null,
-      "ends_type": "never",
-      "ends_on_date": null,
-      "ends_after_count": null
-    }
   }
 }

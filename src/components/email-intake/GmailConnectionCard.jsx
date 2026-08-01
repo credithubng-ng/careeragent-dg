@@ -6,7 +6,7 @@ import { listOwnedRecords } from "@/lib/ownedEntities";
 import { toast } from "react-hot-toast";
 import { Mail, Loader2, Plug, PlugZap, RefreshCw, Sparkles, AlertCircle, CheckCircle2, Clock, MailOpen, FileText, Copy, XCircle } from "lucide-react";
 
-const CONNECTOR_ID = "6a6da7ec647be01f097732d5";
+const CONNECTOR_ID = "6a6dbe19898b53557d5ea634";
 
 export default function GmailConnectionCard() {
   const [user, setUser] = useState(null);
@@ -110,7 +110,7 @@ export default function GmailConnectionCard() {
   };
 
   const lastCheck = emailImports?.[0]?.processed_date;
-  const nextCheck = "Every 2 hours (06:00–22:00 UK)";
+  const nextCheck = "Real-time (auto)";
 
   if (loading) return <Loading label="Checking Gmail connection…" />;
 
@@ -132,7 +132,7 @@ export default function GmailConnectionCard() {
           <Mail className="h-10 w-10 text-muted-foreground mb-3" />
           <p className="font-medium text-foreground">Gmail not connected</p>
           <p className="text-sm text-muted-foreground mt-1 max-w-md">
-            Connect your Gmail account to import job vacancies from job-alert emails. CareerAgent will only read emails labelled "CareerAgent/Job Alerts" — it will never read your other mail or send emails.
+            Connect your Gmail account to import job vacancies from job-alert emails. CareerAgent searches for emails from known job-alert senders (Indeed, LinkedIn, Totaljobs, etc.) — it will never read your other mail or send emails.
           </p>
           <button
             onClick={handleConnect}
@@ -211,12 +211,13 @@ export default function GmailConnectionCard() {
             </div>
           )}
 
-          {/* Gmail label instructions */}
+          {/* How it works */}
           <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
-            <p className="font-medium">Gmail Label Setup</p>
+            <p className="font-medium">How Email Import Works</p>
             <p className="mt-1">
-              Create a Gmail filter that applies the <strong>CareerAgent/Job Alerts</strong> label to your job-alert emails.
-              CareerAgent will only read emails with this label and will apply <strong>CareerAgent/Processed</strong> after extraction.
+              CareerAgent searches your Gmail for emails from known job-alert senders (Indeed, LinkedIn, Totaljobs, Reed, etc.).
+              Each email is parsed into individual vacancies, deduplicated against your existing jobs, and added to the Email Import Review queue.
+              No Gmail labels or filters are required — new emails are processed automatically in real time.
             </p>
           </div>
         </div>

@@ -11,9 +11,9 @@ import {
 import { filterRelevance } from "../../shared/relevanceFilter.ts";
 
 const GMAIL_API = "https://gmail.googleapis.com/gmail/v1/users/me";
-const CONNECTOR_ID = "6a6da7ec647be01f097732d5";
-const JOB_ALERTS_LABEL = "CareerAgent/Job Alerts";
-const PROCESSED_LABEL = "CareerAgent/Processed";
+const CONNECTOR_ID = "6a6dbe19898b53557d5ea634";
+const INITIAL_DAYS = 30;
+const INCREMENTAL_DAYS = 7;
 
 export default async function(req: Request): Promise<Response> {
   try {
@@ -21,6 +21,7 @@ export default async function(req: Request): Promise<Response> {
     const body = await req.json().catch(() => ({}));
     const mode = body.mode || "incremental";
     const maxJobs = Number(body.maxJobs) || 20;
+    const webhookMessageIds: string[] = body.message_ids || [];
 
     // Get user (for user-triggered imports)
     let user = null;
@@ -54,7 +55,7 @@ export default async function(req: Request): Promise<Response> {
       );
     }
 
-    // Get Gmail connection (APP_USER mode)
+    // Get Gmail connection (APP_USER mode — each user connects their own mailbox)
     let accessToken = "";
     try {
       const conn = await base44.asServiceRole.connectors.getCurrentAppUserConnection(CONNECTOR_ID);
@@ -68,14 +69,22 @@ export default async function(req: Request): Promise<Response> {
 
     const authHeader = { Authorization: `Bearer ${accessToken}` };
 
-    // List/create labels
-    const labels = await listLabels(authHeader);
-    const jobAlertsLabelId = await ensureLabel(authHeader, labels, JOB_ALERTS_LABEL);
-    const processedLabelId = await ensureLabel(authHeader, labels, PROCESSED_LABEL);
+    // Get email sources (active only) — used for sender-domain search and filtering
+    const emailSources = await base44.asServiceRole.entities.EmailSource.list();
+    const activeSources = emailSources.filter((s: any) => s.active_status);
 
-    // Search for emails with Job Alerts label
-    const afterDate = mode === "initial" ? getDateString(30) : getDateString(90);
-    const messages = await listMessages(authHeader, jobAlertsLabelId, afterDate, 50);
+    // Determine which messages to process
+    let messages: any[] = [];
+    if (webhookMessageIds.length > 0) {
+      // Webhook mode: process specific message IDs from the connector trigger
+      messages = webhookMessageIds.map((id: string) => ({ id }));
+    } else {
+      // Manual mode: search for emails from known sender domains
+      const days = mode === "initial" ? INITIAL_DAYS : INCREMENTAL_DAYS;
+      const afterDate = getDateString(days);
+      const query = buildSearchQuery(activeSources, afterDate);
+      messages = await listMessages(authHeader, query, 50);
+    }
 
     if (!messages.length) {
       return Response.json({
@@ -87,7 +96,7 @@ export default async function(req: Request): Promise<Response> {
           jobs_rejected: 0,
           failed_emails: 0,
           errors: [],
-          message: "No new job-alert emails found. Make sure your Gmail filter applies the 'CareerAgent/Job Alerts' label to job-alert emails.",
+          message: "No new job-alert emails found from known senders.",
         },
       });
     }
@@ -95,7 +104,6 @@ export default async function(req: Request): Promise<Response> {
     // Get existing data for duplicate detection
     const existingJobs = await base44.asServiceRole.entities.Job.list("-created_date", 500);
     const existingEmailImports = await base44.asServiceRole.entities.EmailImport.list("-created_date", 200);
-    const emailSources = await base44.asServiceRole.entities.EmailSource.list();
 
     let jobsImported = 0;
     let duplicatesSkipped = 0;
@@ -107,21 +115,28 @@ export default async function(req: Request): Promise<Response> {
     for (const msg of messages) {
       if (mode === "initial" && jobsImported >= maxJobs) break;
 
-      // Skip if already has an EmailImport record
+      // Skip if already has an EmailImport record (deduplication without labels)
       if (existingEmailImports.some((ei: any) => ei.gmail_message_id === msg.id)) continue;
 
       try {
         const fullMessage = await getMessage(authHeader, msg.id);
-
-        // Skip if already has Processed label
-        if (fullMessage.labelIds?.includes(processedLabelId)) continue;
-
         const headers = fullMessage.payload?.headers || [];
         const sender = extractSender(headers);
         const subject = extractHeader(headers, "subject");
         const receivedDate = extractHeader(headers, "date");
 
-        const { sourceName } = identifyEmailSource(sender, subject, emailSources);
+        // Filter: only process emails from known job-alert senders
+        const senderLower = (sender || "").toLowerCase();
+        const knownSource = activeSources.find((s: any) => {
+          if (!s.sender_domain) return false;
+          return senderLower.includes(s.sender_domain.toLowerCase());
+        });
+        if (!knownSource) {
+          // Not from a known job-alert sender — skip entirely
+          continue;
+        }
+
+        const { sourceName } = identifyEmailSource(sender, subject, activeSources);
         const bodyText = extractEmailBody(fullMessage.payload);
 
         // Extract individual vacancies using AI
@@ -204,12 +219,12 @@ export default async function(req: Request): Promise<Response> {
           jobsImported++;
         }
 
-        // Create EmailImport record
+        // Create EmailImport record (replaces the "Processed" label for deduplication)
         await base44.asServiceRole.entities.EmailImport.create({
           owner_email: ownerEmail,
           candidate_id: candidate.id,
           gmail_message_id: msg.id,
-          gmail_thread_id: msg.threadId,
+          gmail_thread_id: fullMessage.threadId || "",
           sender,
           subject,
           received_date: receivedDate,
@@ -221,9 +236,6 @@ export default async function(req: Request): Promise<Response> {
           jobs_rejected: emailRejected,
           processed_date: new Date().toISOString(),
         });
-
-        // Apply Processed label
-        await modifyMessageLabels(authHeader, msg.id, [processedLabelId], []);
 
         emailsProcessed++;
       } catch (err: any) {
@@ -248,7 +260,7 @@ export default async function(req: Request): Promise<Response> {
   }
 }
 
-// ─── Gmail API helpers ───
+// ─── Gmail API helpers (gmail.readonly only — no label management) ───
 
 function getDateString(daysAgo: number): string {
   const d = new Date();
@@ -256,39 +268,21 @@ function getDateString(daysAgo: number): string {
   return d.toISOString().slice(0, 10).replace(/-/g, "/");
 }
 
-async function listLabels(authHeader: any): Promise<any[]> {
-  const res = await fetch(`${GMAIL_API}/labels`, { headers: authHeader });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(`Gmail API error: ${err.error?.message || res.statusText}`);
+function buildSearchQuery(sources: any[], afterDate: string): string {
+  const domains = sources
+    .filter((s: any) => s.sender_domain)
+    .map((s: any) => s.sender_domain);
+
+  if (domains.length === 0) {
+    return `subject:"job alert" after:${afterDate}`;
   }
-  const data = await res.json();
-  return data.labels || [];
+
+  const fromPart = domains.map((d: string) => `from:${d}`).join(" OR ");
+  return `(${fromPart}) after:${afterDate}`;
 }
 
-async function ensureLabel(authHeader: any, labels: any[], name: string): Promise<string> {
-  const existing = labels.find((l: any) => l.name === name);
-  if (existing) return existing.id;
-
-  const res = await fetch(`${GMAIL_API}/labels`, {
-    method: "POST",
-    headers: { ...authHeader, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      name,
-      messageListVisibility: "show",
-      labelListVisibility: "labelShow",
-    }),
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(`Failed to create Gmail label "${name}": ${err.error?.message || res.statusText}`);
-  }
-  const data = await res.json();
-  return data.id;
-}
-
-async function listMessages(authHeader: any, labelId: string, afterDate: string, maxResults: number): Promise<any[]> {
-  const url = `${GMAIL_API}/messages?labelIds=${labelId}&maxResults=${maxResults}&q=after:${afterDate}`;
+async function listMessages(authHeader: any, query: string, maxResults: number): Promise<any[]> {
+  const url = `${GMAIL_API}/messages?q=${encodeURIComponent(query)}&maxResults=${maxResults}`;
   const res = await fetch(url, { headers: authHeader });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
@@ -307,14 +301,6 @@ async function getMessage(authHeader: any, messageId: string): Promise<any> {
   return res.json();
 }
 
-async function modifyMessageLabels(authHeader: any, messageId: string, addLabels: string[], removeLabels: string[]): Promise<void> {
-  await fetch(`${GMAIL_API}/messages/${messageId}/modify`, {
-    method: "POST",
-    headers: { ...authHeader, "Content-Type": "application/json" },
-    body: JSON.stringify({ addLabelIds: addLabels, removeLabelIds: removeLabels }),
-  });
-}
-
 // ─── Duplicate detection ───
 
 function findDuplicate(vacancy: any, existingJobs: any[]): any | null {
@@ -326,19 +312,9 @@ function findDuplicate(vacancy: any, existingJobs: any[]): any | null {
   const location = (vacancy.location || "").toLowerCase().trim();
 
   for (const job of existingJobs) {
-    // Canonical URL match
-    if (normalizedUrl && normalizeJobUrl(job.original_job_url) === normalizedUrl) {
-      return job;
-    }
-    // Source-specific job ID match
-    if (sourceJobId && job.source_job_id === sourceJobId) {
-      return job;
-    }
-    // Job reference match
-    if (jobRef && (job.job_reference || "").toLowerCase().trim() === jobRef) {
-      return job;
-    }
-    // Employer + title + location match
+    if (normalizedUrl && normalizeJobUrl(job.original_job_url) === normalizedUrl) return job;
+    if (sourceJobId && job.source_job_id === sourceJobId) return job;
+    if (jobRef && (job.job_reference || "").toLowerCase().trim() === jobRef) return job;
     if (
       employer && title && location &&
       (job.employer || "").toLowerCase().trim() === employer &&
