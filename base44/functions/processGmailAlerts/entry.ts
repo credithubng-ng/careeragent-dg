@@ -10,6 +10,8 @@ import {
 } from "../../shared/emailParsers.ts";
 import { filterRelevance } from "../../shared/relevanceFilter.ts";
 import { runJobMatch } from "../../shared/jobMatching.ts";
+import { fetchJobPageContent } from "../../shared/jobPageFetcher.ts";
+import { extractJobFromText, validateJobCompleteness } from "../../shared/jobExtraction.ts";
 
 const GMAIL_API = "https://gmail.googleapis.com/gmail/v1/users/me";
 const CONNECTOR_ID = "6a6dbe19898b53557d5ea634";
@@ -183,11 +185,11 @@ export default async function(req: Request): Promise<Response> {
             continue;
           }
 
-          // Create Job record
+          // ─── Full pipeline: fetch page → isolate → structure → validate ───
           const sourceJobId = vacancy.source_job_id || extractSourceJobId(vacancy.job_url, sourceName);
-          const jobData = {
-            owner_email: ownerEmail,
-            candidate_id: candidate.id,
+
+          // Start with email-extracted data as the base
+          let structuredJob: any = {
             job_title: vacancy.job_title || "",
             employer: vacancy.employer || "",
             location: vacancy.location || "",
@@ -200,11 +202,92 @@ export default async function(req: Request): Promise<Response> {
             work_arrangement: vacancy.work_arrangement || "Unspecified",
             employment_type: vacancy.employment_type || "",
             job_description: vacancy.summary || "",
+          };
+          let extractionStatus = "Partial";
+          let extractionMethod = "Email Import";
+          let emailImportStatus: string = "Needs Review";
+
+          // Steps 3-5: Retrieve full vacancy page → isolate primary job → structure advert
+          if (vacancy.job_url) {
+            try {
+              const pageResult = await fetchJobPageContent(vacancy.job_url);
+              if (pageResult.status === "success" && pageResult.content) {
+                // Step 5: Structure the full job advert using AI
+                const extracted = await extractJobFromText(
+                  pageResult.content,
+                  (params: any) => base44.asServiceRole.integrations.Core.InvokeLLM(params)
+                );
+
+                // Merge: page-extracted data takes precedence over email data
+                for (const [key, value] of Object.entries(extracted)) {
+                  if (value !== "" && value != null && !(typeof value === "number" && value === 0)) {
+                    structuredJob[key] = value;
+                  }
+                }
+
+                // Use the full page content as job description if AI didn't extract one
+                if (!structuredJob.job_description && pageResult.content) {
+                  structuredJob.job_description = pageResult.content;
+                }
+
+                extractionStatus = "Success";
+                extractionMethod = `Email + Page Fetch (${pageResult.extractionSource || "generic"})`;
+
+                // Step 6: Validate completeness
+                const validation = validateJobCompleteness(structuredJob);
+                if (validation.valid && validation.confidence === "High") {
+                  emailImportStatus = "Complete";
+                } else if (validation.valid) {
+                  emailImportStatus = "Partial";
+                } else {
+                  emailImportStatus = "Needs Review";
+                }
+              } else if (pageResult.status === "restricted") {
+                // Restricted site (LinkedIn, Indeed, etc.) — use email data only
+                extractionStatus = "Partial";
+                extractionMethod = `Email Import (page restricted: ${pageResult.restrictedDomain || "unknown"})`;
+                emailImportStatus = "URL Restricted";
+              }
+              // If page fetch errors, fall back to email data silently
+            } catch (pageError: any) {
+              errors.push(`Page fetch failed for ${vacancy.job_url}: ${pageError.message}`);
+            }
+          }
+
+          // Create Job record with merged data (email + page)
+          const jobData = {
+            owner_email: ownerEmail,
+            candidate_id: candidate.id,
+            job_title: structuredJob.job_title || "",
+            employer: structuredJob.employer || "",
+            location: structuredJob.location || "",
+            salary_min: structuredJob.salary_min || 0,
+            salary_max: structuredJob.salary_max || 0,
+            salary_description: structuredJob.salary_description || "",
+            original_job_url: structuredJob.original_job_url || vacancy.job_url || "",
+            job_reference: structuredJob.job_reference || "",
+            closing_date: structuredJob.closing_date || "",
+            work_arrangement: structuredJob.work_arrangement || "Unspecified",
+            employment_type: structuredJob.employment_type || "",
+            job_description: structuredJob.job_description || "",
+            responsibilities: structuredJob.responsibilities || "",
+            essential_requirements: structuredJob.essential_requirements || "",
+            desirable_requirements: structuredJob.desirable_requirements || "",
+            required_years_experience: structuredJob.required_years_experience || 0,
+            required_qualifications: structuredJob.required_qualifications || "",
+            required_certifications: structuredJob.required_certifications || "",
+            required_technologies: structuredJob.required_technologies || "",
+            required_sector_experience: structuredJob.required_sector_experience || "",
+            right_to_work_requirements: structuredJob.right_to_work_requirements || "",
+            security_clearance_requirement: structuredJob.security_clearance_requirement || "",
+            contact_person: structuredJob.contact_person || "",
+            contact_email: structuredJob.contact_email || "",
+            sector: structuredJob.sector || "",
             job_source_name: sourceName,
             date_discovered: new Date().toISOString().slice(0, 10),
             import_method: "Email",
-            extraction_status: "Partial",
-            extraction_method: "Email Import",
+            extraction_status: extractionStatus,
+            extraction_method: extractionMethod,
             discovered_from_email: true,
             email_source: sourceName,
             email_message_id: msg.id,
@@ -213,9 +296,9 @@ export default async function(req: Request): Promise<Response> {
             first_discovered_date: new Date().toISOString(),
             last_seen_date: new Date().toISOString(),
             relevance_tier: tier,
-            email_import_status: "Needs Review",
+            email_import_status: emailImportStatus,
             job_status: "New",
-            currency: "GBP",
+            currency: structuredJob.currency || "GBP",
           };
 
           const created = await base44.asServiceRole.entities.Job.create(jobData);
