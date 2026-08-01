@@ -1,0 +1,97 @@
+{
+  "name": "EmailSource",
+  "type": "object",
+  "properties": {
+    "owner_email": {
+      "type": "string",
+      "format": "email"
+    },
+    "source_name": {
+      "type": "string"
+    },
+    "sender_email": {
+      "type": "string"
+    },
+    "sender_domain": {
+      "type": "string"
+    },
+    "subject_pattern": {
+      "type": "string"
+    },
+    "active_status": {
+      "type": "boolean",
+      "default": true
+    },
+    "parser_type": {
+      "type": "string",
+      "enum": [
+        "Indeed",
+        "Totaljobs",
+        "CivilServiceJobs",
+        "Adzuna",
+        "Reed",
+        "CVLibrary",
+        "LinkedIn",
+        "NHSJobs",
+        "JobSwipe",
+        "ExecThread",
+        "Generic"
+      ],
+      "default": "Generic"
+    },
+    "priority": {
+      "type": "number",
+      "default": 5
+    },
+    "last_successful_import": {
+      "type": "string"
+    },
+    "jobs_imported": {
+      "type": "number",
+      "default": 0
+    },
+    "duplicates_detected": {
+      "type": "number",
+      "default": 0
+    },
+    "failure_rate": {
+      "type": "number",
+      "default": 0
+    }
+  },
+  "required": [
+    "source_name"
+  ],
+  "rls": {
+    "create": {
+      "data.owner_email": "{{user.email}}"
+    },
+    "read": {
+      "$or": [
+        {
+          "data.owner_email": "{{user.email}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "data.owner_email": "{{user.email}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "data.owner_email": "{{user.email}}"
+    }
+  }
+}

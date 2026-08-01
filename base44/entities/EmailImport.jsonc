@@ -1,0 +1,104 @@
+{
+  "name": "EmailImport",
+  "type": "object",
+  "properties": {
+    "owner_email": {
+      "type": "string",
+      "format": "email"
+    },
+    "candidate_id": {
+      "type": "string"
+    },
+    "gmail_message_id": {
+      "type": "string"
+    },
+    "gmail_thread_id": {
+      "type": "string"
+    },
+    "sender": {
+      "type": "string"
+    },
+    "subject": {
+      "type": "string"
+    },
+    "received_date": {
+      "type": "string"
+    },
+    "source": {
+      "type": "string"
+    },
+    "processing_status": {
+      "type": "string",
+      "enum": [
+        "Pending",
+        "Processing",
+        "Completed",
+        "Partially Completed",
+        "Failed",
+        "Skipped"
+      ],
+      "default": "Pending"
+    },
+    "jobs_detected": {
+      "type": "number",
+      "default": 0
+    },
+    "jobs_imported": {
+      "type": "number",
+      "default": 0
+    },
+    "duplicates_skipped": {
+      "type": "number",
+      "default": 0
+    },
+    "jobs_rejected": {
+      "type": "number",
+      "default": 0
+    },
+    "errors": {
+      "type": "string"
+    },
+    "processed_date": {
+      "type": "string"
+    },
+    "retry_count": {
+      "type": "number",
+      "default": 0
+    }
+  },
+  "required": [
+    "gmail_message_id"
+  ],
+  "rls": {
+    "create": {
+      "data.owner_email": "{{user.email}}"
+    },
+    "read": {
+      "$or": [
+        {
+          "data.owner_email": "{{user.email}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "update": {
+      "$or": [
+        {
+          "data.owner_email": "{{user.email}}"
+        },
+        {
+          "user_condition": {
+            "role": "admin"
+          }
+        }
+      ]
+    },
+    "delete": {
+      "data.owner_email": "{{user.email}}"
+    }
+  }
+}
