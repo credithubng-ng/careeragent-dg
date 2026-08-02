@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { extractJobFromText } from "@/lib/careerAI";
 import { SectionCard } from "@/components/ui-kit";
 import { Sparkles, Loader2, AlertCircle, ExternalLink } from "lucide-react";
+import { recoverJobFields } from "@/lib/jobTextRecovery";
 
 const MAX_JOB_TEXT = 15000;
 
@@ -29,7 +30,7 @@ export default function PasteImportTab({ onExtracted, initialText, fallbackConte
     setExtracting(true);
     setError("");
     try {
-      const result = await extractJobFromText(text);
+      const result = recoverJobFields(text, await extractJobFromText(text));
       onExtracted(
         {
           ...result,

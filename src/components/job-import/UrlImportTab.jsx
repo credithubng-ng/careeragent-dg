@@ -1,8 +1,7 @@
 import React, { useState } from "react";
-import { validateJobUrl, JOB_URL_EXAMPLES, SUPPORTED_SOURCES, importJobFromUrl } from "@/lib/jobUrlImport";
+import { validateJobUrl, JOB_URL_EXAMPLES, SUPPORTED_SOURCES, PASTE_ONLY_SOURCES, importJobFromUrl } from "@/lib/jobUrlImport";
 import { SectionCard, Notice } from "@/components/ui-kit";
-import { Sparkles, Loader2, ClipboardPaste, FileText, AlertCircle, Globe } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { Sparkles, Loader2, ClipboardPaste, FileText, Globe } from "lucide-react";
 
 export default function UrlImportTab({ onExtracted, onFallback, preservingUrl }) {
   const [url, setUrl] = useState(preservingUrl || "");
@@ -122,7 +121,10 @@ export default function UrlImportTab({ onExtracted, onFallback, preservingUrl })
                 <span key={source} className="rounded-md border border-border bg-muted/20 px-2 py-0.5">{source}</span>
               ))}
             </div>
-            <p className="mt-2">Future sources require no redesign — the extraction engine adapts to any HTML job page.</p>
+            <p className="mt-2">URL import works for publicly accessible job pages.</p>
+            <p className="mt-1">
+              {PASTE_ONLY_SOURCES.join(", ")} require an authenticated browser session, so copy and paste the complete advert instead.
+            </p>
           </details>
         </div>
       </SectionCard>

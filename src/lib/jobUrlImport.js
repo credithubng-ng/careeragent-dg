@@ -52,10 +52,10 @@ export const SUPPORTED_SOURCES = [
   "Civil Service Jobs",
   "Reed",
   "CV Library",
-  "Indeed",
-  "LinkedIn",
   "TotalJobs",
 ];
+
+export const PASTE_ONLY_SOURCES = ["LinkedIn", "Indeed", "Glassdoor"];
 
 export const MATCH_PROGRESS_STEPS = [
   "Retrieving job…",

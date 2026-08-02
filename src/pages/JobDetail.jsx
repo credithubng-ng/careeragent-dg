@@ -7,7 +7,7 @@ import { ukDate, daysUntil, gbp } from "@/lib/format";
 import { analyseJobMatch, getUsableCandidateCVs } from "@/lib/careerAI";
 import { ArrowLeft, Sparkles, Flame, Check, X, HelpCircle, AlertTriangle, Wand2, Plus, ExternalLink, CalendarPlus, Pencil, Wrench, AlertCircle } from "lucide-react";
 import { toast } from "react-hot-toast";
-import { createOwnedRecord, listOwnedRecords as sharedListOwned } from "@/lib/ownedEntities";
+import { createOwnedRecord, getOwnedRecord, listOwnedRecords as sharedListOwned } from "@/lib/ownedEntities";
 import { requireMatchResult } from "@/lib/aiResponse";
 import { rankOpportunity } from "@/lib/opportunityRanking";
 
@@ -122,18 +122,24 @@ export default function JobDetail() {
   );
 
   useEffect(() => {
+    let active = true;
+    setLoading(true);
+    setJob(null);
     (async () => {
       try {
-        const j = await base44.entities.Job.get(id);
+        const j = await getOwnedRecord("Job", id);
+        if (!j) throw new Error("This job could not be found in Angel's account.");
+        if (!active) return;
         setJob(j);
         const settings = await listOwnedRecords("ScoringSetting", { active: true });
-        setScoring(settings[0] || null);
+        if (active) setScoring(settings[0] || null);
       } catch (error) {
-        toast.error(error?.message || "Unable to load this job. Please try again.");
+        if (active) toast.error(error?.message || "Unable to load this job. Please try again.");
       } finally {
-        setLoading(false);
+        if (active) setLoading(false);
       }
     })();
+    return () => { active = false; };
   }, [id]);
 
   useEffect(() => {

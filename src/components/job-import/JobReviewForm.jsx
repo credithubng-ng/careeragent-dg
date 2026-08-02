@@ -1,6 +1,6 @@
 import React from "react";
 import { cn } from "@/lib/utils";
-import { todayISO, daysUntil } from "@/lib/format";
+import { daysUntil } from "@/lib/format";
 import { Save, Loader2, ArrowLeft, AlertTriangle, AlertCircle, Sparkles, ShieldAlert } from "lucide-react";
 import ExtractionDiagnostics from "./ExtractionDiagnostics";
 
@@ -54,8 +54,8 @@ export default function JobReviewForm({
   importMethod,
   extractionMeta,
 }) {
-  const shortFields = SHORT_FIELD_ORDER.filter((key) => key in review);
-  const longFields = [...LONG_FIELDS].filter((key) => key in review);
+  const shortFields = SHORT_FIELD_ORDER;
+  const longFields = [...LONG_FIELDS];
   const hasEmployer = !isFieldEmpty(review.employer) || !isFieldEmpty(review.recruitment_agency);
   const closeDays = review.closing_date ? daysUntil(review.closing_date) : null;
 

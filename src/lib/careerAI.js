@@ -5,6 +5,29 @@ import { getPersonaConfig, getAuthoredInstruction, getCoachingInstruction } from
 import { requireAIObject, requireJobExtraction } from "./aiResponse";
 import { assertJobOwner, getMatchingProfile } from "./profileReliability";
 
+function isTransientAIError(error) {
+  const status = Number(error?.status || error?.response?.status || 0);
+  const message = String(error?.message || "").toLowerCase();
+  return status === 429 || status >= 500 || /rate limit|temporar|timeout|network/.test(message);
+}
+
+async function invokeAI(params, purpose) {
+  let lastError;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      return requireAIObject(
+        await base44.integrations.Core.InvokeLLM(params),
+        purpose
+      );
+    } catch (error) {
+      lastError = error;
+      if (attempt > 0 || !isTransientAIError(error)) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 1200));
+    }
+  }
+  throw lastError;
+}
+
 export const DEFAULT_WEIGHTS = {
   weight_experience: 25,
   weight_essential_skills: 20,
@@ -182,16 +205,22 @@ export async function extractJobFromText(text) {
         salary_min: { type: "number" },
         salary_max: { type: "number" },
         salary_description: { type: "string" },
+        salary_period: { type: "string", enum: ["", "annual", "daily", "hourly", "monthly", "not_stated"] },
+        salary_text: { type: "string" },
         currency: { type: "string" },
+        role_summary: { type: "string" },
         job_description: { type: "string" },
         responsibilities: { type: "string" },
         essential_requirements: { type: "string" },
         desirable_requirements: { type: "string" },
+        required_skills: { type: "string" },
+        required_experience: { type: "string" },
         required_years_experience: { type: "number" },
         required_qualifications: { type: "string" },
         required_certifications: { type: "string" },
         required_technologies: { type: "string" },
         required_sector_experience: { type: "string" },
+        seniority: { type: "string" },
         right_to_work_requirements: { type: "string" },
         security_clearance_requirement: { type: "string" },
         closing_date: { type: "string" },
@@ -214,10 +243,7 @@ export async function analyseJobMatch(job, candidate, cvs, scoring, jobContentSt
   assertJobOwner(job, profile.ownerEmail);
   return sharedRunJobMatch(
     job, profile.candidate, profile.readyCVs, scoring,
-    async (params) => requireAIObject(
-      await base44.integrations.Core.InvokeLLM(params),
-      "match assessment"
-    ),
+    (params) => invokeAI(params, "match assessment"),
     jobContentStatus
   );
 }

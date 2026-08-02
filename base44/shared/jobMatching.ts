@@ -11,7 +11,7 @@
 // Usable in both frontend (careerAI.js) and backend (processGmailAlerts).
 import { getCoachingInstruction, getPersonaConfig } from "./persona.ts";
 
-export const MATCHING_ENGINE_VERSION = 2;
+export const MATCHING_ENGINE_VERSION = 3;
 
 export const DEFAULT_WEIGHTS = {
   weight_experience: 25,
@@ -35,6 +35,16 @@ export const DEFAULT_HARD_STOPS = [
 ];
 
 const SCORING_CATEGORIES = Object.keys(DEFAULT_WEIGHTS);
+const CATEGORY_LABELS: Record<string, string> = {
+  weight_experience: "Relevant experience",
+  weight_essential_skills: "Essential skills",
+  weight_seniority_leadership: "Seniority and leadership",
+  weight_sector: "Sector experience",
+  weight_responsibilities: "Responsibilities",
+  weight_location: "Location and working pattern",
+  weight_salary: "Salary",
+  weight_qualifications: "Qualifications",
+};
 const EVIDENCE_SIMILARITY_THRESHOLD = 0.72;
 
 // Material questions that prevent a "Final" assessment
@@ -543,7 +553,8 @@ export function assessExperience(job: any, candidate: any): StructuredAssessment
 export function determineCategoryStatus(
   category: string,
   llmAnalysis: any,
-  jobContentStatus: string
+  jobContentStatus: string,
+  weights: Record<string, number> = DEFAULT_WEIGHTS
 ): {
   status: CategoryStatus;
   score: number;
@@ -553,7 +564,7 @@ export function determineCategoryStatus(
   pointsWithheldReason: string;
   unresolvedQuestion: string;
 } {
-  const maximum = Number(DEFAULT_WEIGHTS[category]) || 0;
+  const maximum = Number(weights[category]) || 0;
   const requirement = String(llmAnalysis?.requirement || "");
   const requirementStated = llmAnalysis?.requirement_stated !== false;
   const preliminaryStatus = String(llmAnalysis?.preliminary_status || "");
@@ -561,8 +572,13 @@ export function determineCategoryStatus(
   const pointsWithheldReason = String(llmAnalysis?.points_withheld_reason || "");
   const unresolvedQuestion = String(llmAnalysis?.unresolved_question || "");
 
+  // v3 scoring is deliberately stable: the AI classifies each semantic
+  // category, while application code converts that class to fixed points.
+  // This prevents identical evidence receiving different arbitrary points on
+  // repeated runs. Structured categories are marked deterministic and retain
+  // their calculated ratio.
   const requestedPoints = Number(llmAnalysis?.awarded_points);
-  const score = Number.isFinite(requestedPoints)
+  const deterministicScore = Number.isFinite(requestedPoints)
     ? Math.min(maximum, Math.max(0, requestedPoints))
     : 0;
 
@@ -606,23 +622,29 @@ export function determineCategoryStatus(
     };
   }
 
-  const ratio = maximum > 0 ? score / maximum : 0;
-
   let status: CategoryStatus;
 
   if (preliminaryStatus === "No Match" || preliminaryStatus === "Gap") {
     status = "No Match";
   } else if (preliminaryStatus === "Strong Match" || preliminaryStatus === "Verified") {
-    status = ratio >= 0.8 ? "Strong Match" : "Partial Match";
-  } else if (preliminaryStatus === "Partial Match" || preliminaryStatus === "Partially Verified") {
-    status = score > 0 ? "Partial Match" : "No Match";
-  } else if (ratio >= 0.8) {
     status = "Strong Match";
-  } else if (ratio >= 0.3) {
+  } else if (preliminaryStatus === "Partial Match" || preliminaryStatus === "Partially Verified") {
+    status = "Partial Match";
+  } else if (deterministicScore >= maximum * 0.8) {
+    status = "Strong Match";
+  } else if (deterministicScore > 0) {
     status = "Partial Match";
   } else {
     status = "No Match";
   }
+
+  const score = llmAnalysis?.deterministic === true
+    ? deterministicScore
+    : status === "Strong Match"
+      ? maximum
+      : status === "Partial Match"
+        ? maximum * 0.6
+        : 0;
 
   return {
     status,
@@ -703,7 +725,8 @@ function buildCandidateContextData(candidate: any, cvs: any[]) {
 function buildCategoryAnalysisMap(
   llmCategoryAnalysis: any[],
   job: any,
-  candidate: any
+  candidate: any,
+  weights: Record<string, number>
 ): Map<string, any> {
   const map = new Map<string, any>();
   for (const ca of llmCategoryAnalysis) {
@@ -722,12 +745,15 @@ function buildCategoryAnalysisMap(
   for (const { category, assessment } of overrides) {
     if (assessment?.applicable) {
       const existing = map.get(category);
+      const defaultMaximum = Number(DEFAULT_WEIGHTS[category]) || 0;
+      const configuredMaximum = Number(weights[category]) || 0;
+      const ratio = defaultMaximum > 0 ? assessment.awarded_points / defaultMaximum : 0;
       map.set(category, {
         category,
         requirement: assessment.requirement || existing?.requirement || "",
         requirement_stated: assessment.status !== "Requirement Not Stated",
         preliminary_status: assessment.status,
-        awarded_points: assessment.awarded_points,
+        awarded_points: Math.round(configuredMaximum * ratio * 10) / 10,
         explanation: assessment.explanation,
         points_withheld_reason: "",
         unresolved_question: "",
@@ -779,19 +805,18 @@ function normaliseMatchResult(
 
   // Build per-category analysis with deterministic overrides
   const llmCategoryAnalysis = Array.isArray(result?.category_analysis) ? result.category_analysis : [];
-  const categoryAnalysisMap = buildCategoryAnalysisMap(llmCategoryAnalysis, job, candidate);
+  const categoryAnalysisMap = buildCategoryAnalysisMap(llmCategoryAnalysis, job, candidate, weights);
 
   const breakdown: Record<string, any> = {};
   const categoryAnalysis: Record<string, any> = {};
   let awardedPoints = 0;
-  let denominatorWeight = 0;
   let assessedCategories = 0;
   const totalCategories = SCORING_CATEGORIES.length;
 
   for (const category of SCORING_CATEGORIES) {
     const llmAnalysis = categoryAnalysisMap.get(category) || {};
     const { status, score, maximum, requirement, explanation, pointsWithheldReason, unresolvedQuestion } =
-      determineCategoryStatus(category, llmAnalysis, jobContentStatus);
+      determineCategoryStatus(category, llmAnalysis, jobContentStatus, weights);
 
     breakdown[category] = { score, maximum, status };
     categoryAnalysis[category] = {
@@ -807,21 +832,17 @@ function normaliseMatchResult(
 
     awardedPoints += score;
 
-    // Denominator: exclude "Requirement Not Stated", "Not Applicable", and "Insufficient Information"
-    if (status !== "Requirement Not Stated" && status !== "Not Applicable" && status !== "Insufficient Information") {
-      denominatorWeight += maximum;
-    }
-
     // Coverage: categories with a definitive status
     if (status !== "Insufficient Information") {
       assessedCategories++;
     }
   }
 
-  // Total score: sum of awarded / sum of applicable maximums * 100
-  const totalScore = denominatorWeight > 0
-    ? Math.round((awardedPoints / denominatorWeight) * 100)
-    : 0;
+  // v3 total is the actual weighted points out of 100. Earlier versions
+  // removed unstated categories from the denominator, which could inflate a
+  // sparse advert to an apparently excellent score and made jobs difficult to
+  // compare. Coverage now explains missing information separately.
+  const totalScore = Math.min(100, Math.max(0, Math.round(awardedPoints)));
 
   // Coverage
   const coverage = Math.round((assessedCategories / totalCategories) * 100);
@@ -883,6 +904,22 @@ function normaliseMatchResult(
     confidence = String(result?.confidence || "Medium");
   }
 
+  const readableReasons = (wantedStatus: CategoryStatus) => Object.entries(categoryAnalysis)
+    .filter(([, analysis]: [string, any]) => analysis.status === wantedStatus && analysis.explanation)
+    .sort(([, left]: [string, any], [, right]: [string, any]) => right.maximum - left.maximum)
+    .slice(0, 4)
+    .map(([category, analysis]: [string, any]) => `${CATEGORY_LABELS[category] || category}: ${analysis.explanation}`);
+
+  const recommendedAction = hasHardStop
+    ? `Do not apply until this blocking issue is resolved: ${hardStops[0]}`
+    : finalScore >= 80
+      ? "Strong fit. Prioritise this application after checking the remaining questions and tailoring the Master CV."
+      : finalScore >= 70
+        ? "Worth pursuing. Review the partial matches and close the most important evidence gaps before applying."
+        : finalScore >= 50
+          ? "Possible fit. Apply only if the missing requirements are non-essential or can be evidenced from Angel's experience."
+          : "Low fit. Focus first on stronger opportunities unless there is important evidence missing from the profile or job advert.";
+
   return {
     matching_engine_version: MATCHING_ENGINE_VERSION,
     total_score: finalScore,
@@ -891,8 +928,8 @@ function normaliseMatchResult(
     assessment_status: assessmentStatus,
     recommendation,
     confidence,
-    strong_reasons: strong.verified,
-    partial_reasons: partial.verified,
+    strong_reasons: readableReasons("Strong Match"),
+    partial_reasons: readableReasons("Partial Match"),
     transferable_strengths: transferable.verified,
     missing_requirements: Array.isArray(result?.missing_requirements) ? result.missing_requirements : [],
     concerns: Array.isArray(result?.concerns) ? result.concerns : [],
@@ -901,11 +938,11 @@ function normaliseMatchResult(
     suggested_cv: String(result?.suggested_cv || contextData.master_cv.name || ""),
     application_priority: String(result?.application_priority || ""),
     suggested_deadline: String(result?.suggested_deadline || ""),
-    recommended_action: assessmentStatus === "Preliminary"
-      ? "This is a preliminary review because the available job information is incomplete. A final assessment requires the full vacancy details."
-      : assessmentStatus === "Restricted Source"
-        ? "This is a restricted-source review. Full vacancy content is required for a final assessment."
-        : String(result?.recommended_action || ""),
+    recommended_action: assessmentStatus === "Restricted Source"
+      ? "This is a restricted-source review. Paste the complete vacancy text before relying on the score."
+      : assessmentStatus === "Preliminary"
+        ? `${recommendedAction} This remains preliminary because some job information is missing.`
+        : recommendedAction,
     breakdown,
     category_analysis: categoryAnalysis,
   };
