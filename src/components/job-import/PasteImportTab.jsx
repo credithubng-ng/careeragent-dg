@@ -16,6 +16,7 @@ const DOMAIN_LABELS = {
 export default function PasteImportTab({ onExtracted, initialText, fallbackContext }) {
   const [text, setText] = useState(initialText || "");
   const [extracting, setExtracting] = useState(false);
+  const [error, setError] = useState("");
 
   const isRestricted = fallbackContext?.restrictedSource;
   const domain = fallbackContext?.domain || "";
@@ -26,6 +27,7 @@ export default function PasteImportTab({ onExtracted, initialText, fallbackConte
     if (text.trim().length < 100) return;
     if (text.trim().length > MAX_JOB_TEXT) return;
     setExtracting(true);
+    setError("");
     try {
       const result = await extractJobFromText(text);
       onExtracted(
@@ -38,8 +40,8 @@ export default function PasteImportTab({ onExtracted, initialText, fallbackConte
         "Paste",
         isRestricted ? "Restricted Website Fallback" : "AI Text Extract"
       );
-    } catch {
-      setExtracting(false);
+    } catch (err) {
+      setError(err?.message || "Unable to extract this job. Check the advert and try again.");
     } finally {
       setExtracting(false);
     }
@@ -107,6 +109,9 @@ export default function PasteImportTab({ onExtracted, initialText, fallbackConte
           </span>
           <span>{text.trim().length.toLocaleString()} chars</span>
         </div>
+        {error && (
+          <p role="alert" className="mt-2 text-sm text-rose-600">{error}</p>
+        )}
         <div className="flex justify-end mt-4">
           <button
             onClick={handleExtract}

@@ -8,7 +8,8 @@ import { analyseJobMatch, getUsableCandidateCVs } from "@/lib/careerAI";
 import { ArrowLeft, Sparkles, Flame, Check, X, HelpCircle, AlertTriangle, Wand2, Plus, ExternalLink, CalendarPlus, Pencil, Wrench, AlertCircle } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { createOwnedRecord, listOwnedRecords as sharedListOwned } from "@/lib/ownedEntities";
-import { rankOpportunity, OPPORTUNITY_LEVELS } from "@/lib/opportunityRanking";
+import { requireMatchResult } from "@/lib/aiResponse";
+import { rankOpportunity } from "@/lib/opportunityRanking";
 
 const MATCH_TIMEOUT_MS = 90_000;
 const JOB_UPDATE_TIMEOUT_MS = 15_000;
@@ -166,11 +167,11 @@ export default function JobDetail() {
     setMatchError(null);
     const t = toast.loading("Analysing this job…");
     try {
-      const result = await withTimeout(
+      const result = requireMatchResult(await withTimeout(
         analyseJobMatch(job, candidate, cvs, scoring, job.job_content_status || "Complete"),
         MATCH_TIMEOUT_MS,
         "Match analysis timed out. Please try again."
-      );
+      ));
       const payload = { candidate_id: candidate.id, job_id: targetJobId, ...result };
       const created = await createOwnedRecord("JobMatch", payload);
 

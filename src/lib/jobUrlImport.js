@@ -6,6 +6,7 @@ import {
   validateJobCoherence,
   assessConfidence,
 } from "./jobExtraction";
+import { extractTextResponse } from "./aiResponse";
 
 export class RestrictedSourceError extends Error {
   constructor(message, domain, originalUrl) {
@@ -99,6 +100,10 @@ export async function importJobFromUrl(url, onProgress) {
     throw new Error(pageData?.error || "Unable to retrieve the job page.");
   }
 
+  if (typeof pageData.content !== "string" || pageData.content.trim().length < 100) {
+    throw new Error("The job page did not contain enough readable vacancy text. Try pasting the advert instead.");
+  }
+
   if (onProgress) onProgress("extract");
   const aiFields = await extractJobFromText(pageData.content);
 
@@ -182,7 +187,7 @@ export async function importJobFromPdf(file, onProgress) {
       file_url: upload.file_url,
       json_schema: PDF_TEXT_SCHEMA,
     });
-    rawText = extracted?.output?.text || extracted?.text || "";
+    rawText = extractTextResponse(extracted);
     if (!rawText?.trim()) {
       throw new Error("No text could be read from this PDF. Try pasting the job description instead.");
     }

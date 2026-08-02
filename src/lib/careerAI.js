@@ -2,6 +2,8 @@ import { base44 } from "@/api/base44Client";
 import { recommendationBand } from "./format";
 import { runJobMatch as sharedRunJobMatch } from "../../base44/shared/jobMatching.ts";
 import { getPersonaConfig, getAuthoredInstruction, getCoachingInstruction } from "../../base44/shared/persona.ts";
+import { requireAIObject, requireJobExtraction } from "./aiResponse";
+import { assertJobOwner, getMatchingProfile } from "./profileReliability";
 
 export const DEFAULT_WEIGHTS = {
   weight_experience: 25,
@@ -204,13 +206,18 @@ export async function extractJobFromText(text) {
       },
     },
   });
-  return res;
+  return requireJobExtraction(res);
 }
 
 export async function analyseJobMatch(job, candidate, cvs, scoring, jobContentStatus = "Complete") {
+  const profile = getMatchingProfile(candidate, cvs);
+  assertJobOwner(job, profile.ownerEmail);
   return sharedRunJobMatch(
-    job, candidate, cvs, scoring,
-    (params) => base44.integrations.Core.InvokeLLM(params),
+    job, profile.candidate, profile.readyCVs, scoring,
+    async (params) => requireAIObject(
+      await base44.integrations.Core.InvokeLLM(params),
+      "match assessment"
+    ),
     jobContentStatus
   );
 }
@@ -242,7 +249,7 @@ You are a specialist career application writer for a senior Data Governance prof
     questions: match?.questions || [],
   }, null, 2)}\n\nJOB:\n${JSON.stringify(job)}\n${questionText ? `\nAPPLICATION QUESTION TO ANSWER:\n${questionText}\n` : ""}`;
   const res = await base44.integrations.Core.InvokeLLM({
-    model: "gpt_5",
+    model: "gpt_5_4",
     prompt,
     response_json_schema: {
       type: "object",
@@ -258,8 +265,9 @@ You are a specialist career application writer for a senior Data Governance prof
     },
   });
 
-  const content = typeof res?.content === "string" ? res.content.trim() : "";
-  const evidenceQuotes = Array.isArray(res?.evidence_quotes) ? res.evidence_quotes : [];
+  const draft = requireAIObject(res, "application draft");
+  const content = typeof draft.content === "string" ? draft.content.trim() : "";
+  const evidenceQuotes = Array.isArray(draft.evidence_quotes) ? draft.evidence_quotes : [];
   const profileText = JSON.stringify(candidateContext.candidate_profile);
   const cvText = candidateContext.master_cv_text;
   const unverifiedEvidence = evidenceQuotes.filter(
@@ -281,7 +289,8 @@ export async function generateInterviewQuestions(job, candidate) {
 You are an interview preparation assistant for a senior Data Governance role. Based on the job description and the applicant's profile, generate 8 likely interview questions covering technical Data Governance knowledge, leadership, stakeholder management and behavioural/competency questions. Do not invent employer facts. Return as a JSON array of strings.\n\nYOUR PROFILE:\n${ctx}\n\nJOB:\n${JSON.stringify(job)}`,
     response_json_schema: { type: "object", properties: { questions: { type: "array", items: { type: "string" } } } },
   });
-  return res?.questions || [];
+  const result = requireAIObject(res, "interview preparation");
+  return Array.isArray(result.questions) ? result.questions : [];
 }
 
 export { recommendationBand };

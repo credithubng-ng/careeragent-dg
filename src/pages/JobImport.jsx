@@ -17,6 +17,7 @@ import DuplicateJobDialog from "@/components/job-import/DuplicateJobDialog";
 import ImportProgress from "@/components/job-import/ImportProgress";
 import { toast } from "react-hot-toast";
 import { cn } from "@/lib/utils";
+import { requireMatchResult } from "@/lib/aiResponse";
 import { Link as LinkIcon, ClipboardPaste, FileText } from "lucide-react";
 
 const MATCH_TIMEOUT_MS = 120_000;
@@ -176,11 +177,11 @@ export default function JobImport() {
       if (cancelRef.current) return;
 
       setMatchStep(3); // "Running AI Match…"
-      const result = await withTimeout(
+      const result = requireMatchResult(await withTimeout(
         analyseJobMatch(savedJob, candidate, cvs, scoringSettings[0]),
         MATCH_TIMEOUT_MS,
         "Match analysis timed out. The job is saved — you can run match analysis from the job page."
-      );
+      ));
 
       if (cancelRef.current) return;
 
