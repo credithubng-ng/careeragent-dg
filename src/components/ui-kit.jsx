@@ -14,7 +14,7 @@ export function PageHeader({ title, subtitle, actions }) {
   );
 }
 
-export function StatCard({ label, value, hint, icon: Icon, accent = "primary" }) {
+export function StatCard({ label, value, hint, icon: Icon, accent = "primary", className }) {
   const accents = {
     primary: "bg-primary/10 text-primary",
     blue: "bg-blue-500/10 text-blue-600",
@@ -24,7 +24,7 @@ export function StatCard({ label, value, hint, icon: Icon, accent = "primary" })
     violet: "bg-violet-500/10 text-violet-600",
   };
   return (
-    <div className="rounded-xl border border-border bg-card p-4 shadow-sm">
+    <div className={cn("rounded-xl border border-border bg-card p-4 shadow-sm", className)}>
       <div className="flex items-center justify-between">
         <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{label}</span>
         {Icon && <div className={cn("rounded-lg p-1.5", accents[accent])}><Icon className="h-4 w-4" /></div>}

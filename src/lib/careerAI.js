@@ -13,7 +13,7 @@ function isTransientAIError(error) {
 
 async function invokeAI(params, purpose) {
   let lastError;
-  for (let attempt = 0; attempt < 2; attempt += 1) {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
     try {
       return requireAIObject(
         await base44.integrations.Core.InvokeLLM(params),
@@ -21,8 +21,8 @@ async function invokeAI(params, purpose) {
       );
     } catch (error) {
       lastError = error;
-      if (attempt > 0 || !isTransientAIError(error)) throw error;
-      await new Promise((resolve) => setTimeout(resolve, 1200));
+      if (attempt >= 2 || !isTransientAIError(error)) throw error;
+      await new Promise((resolve) => setTimeout(resolve, attempt === 0 ? 3000 : 8000));
     }
   }
   throw lastError;

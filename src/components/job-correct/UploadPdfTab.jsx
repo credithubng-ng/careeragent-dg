@@ -5,6 +5,7 @@ import { validateJobFile } from "@/lib/jobUrlImport";
 import { extractDocxText } from "@/lib/docxExtract";
 import ComparisonView from "./ComparisonView";
 import { Loader2, Upload, AlertTriangle, FileText } from "lucide-react";
+import { extractTextResponse } from "@/lib/aiResponse";
 
 const PDF_TEXT_SCHEMA = { type: "object", properties: { text: { type: "string" } } };
 
@@ -51,7 +52,7 @@ export default function UploadPdfTab({ currentJob, onExtracted, decisions, onDec
           file_url: upload.file_url,
           json_schema: PDF_TEXT_SCHEMA,
         });
-        text = result?.output?.text || result?.text || "";
+        text = extractTextResponse(result);
       }
       if (!text?.trim()) throw new Error("No text could be read from this file.");
       if (text.length > 15000) text = text.slice(0, 15000);
@@ -82,13 +83,13 @@ export default function UploadPdfTab({ currentJob, onExtracted, decisions, onDec
     <div className="space-y-4">
       <div>
         <label className="block text-sm font-medium text-foreground mb-1">
-          Replacement PDF or DOCX file
+          Replacement PDF, DOCX, or screenshot
         </label>
         <div className="flex items-center gap-3">
           <input
             ref={fileInputRef}
             type="file"
-            accept=".pdf,.docx"
+            accept=".pdf,.docx,.png,.jpg,.jpeg,.webp,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/png,image/jpeg,image/webp"
             onChange={handleFileSelect}
             className="text-sm text-muted-foreground file:mr-3 file:rounded-lg file:border-0 file:bg-primary file:px-4 file:py-2 file:text-sm file:font-medium file:text-primary-foreground hover:file:bg-primary/90"
           />
@@ -99,7 +100,7 @@ export default function UploadPdfTab({ currentJob, onExtracted, decisions, onDec
           )}
         </div>
         <p className="text-xs text-muted-foreground mt-1">
-          Upload a replacement job advert. The content will be extracted and compared with the current job.
+          Upload a document or clear screenshot of the full advert. Text will be extracted and compared with the current job.
         </p>
       </div>
 

@@ -1,9 +1,9 @@
 import React, { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useCollection } from "@/lib/entityHooks";
-import { PageHeader, SectionCard, Loading, EmptyState, StatusBadge, ScoreBadge } from "@/components/ui-kit";
+import { PageHeader, Loading, EmptyState, StatusBadge, ScoreBadge } from "@/components/ui-kit";
 import { ukDate, daysUntil, formatSalary } from "@/lib/format";
-import { Plus, Upload, Search, Filter, ExternalLink, Briefcase } from "lucide-react";
+import { Plus, Upload, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { listOwnedRecords } from "@/lib/ownedEntities";
 
@@ -17,10 +17,11 @@ const SAVED_VIEWS = [
 ];
 
 export default function Jobs() {
+  const [searchParams] = useSearchParams();
   const { data: jobs, loading, refetch } = useCollection("Job", () => listOwnedRecords("Job", {}, "-created_date", 300));
   const [search, setSearch] = useState("");
-  const [view, setView] = useState("All");
-  const [filters, setFilters] = useState({ status: "", employment_type: "", work_arrangement: "", minScore: "" });
+  const [view, setView] = useState(searchParams.get("view") || "All");
+  const [filters, setFilters] = useState({ status: searchParams.get("status") || "", employment_type: "", work_arrangement: "", minScore: searchParams.get("minScore") || "" });
 
   const filtered = useMemo(() => {
     let list = jobs.filter(SAVED_VIEWS.find((v) => v.label === view).filter);

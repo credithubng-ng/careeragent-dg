@@ -379,13 +379,13 @@ export function assessSalary(job: any, candidate: any): StructuredAssessment | n
   if (jobMin === 0 && jobMax === 0 && !salaryDescription) {
     return {
       applicable: true,
-      status: "Requirement Not Stated",
-      awarded_points: 0,
+      status: "Partial Match",
+      awarded_points: Math.round(maximum * 0.6 * 10) / 10,
       maximum,
-      requirement: "",
-      explanation: "The vacancy does not state a salary, so salary alignment cannot be assessed.",
+      requirement: "Salary not advertised",
+      explanation: "Salary is not advertised. A neutral score is used; compare the role with a current industry benchmark before applying.",
       matched_facts: [],
-      conflicting_facts: [],
+      conflicting_facts: ["Advertised salary is unknown"],
     };
   }
 

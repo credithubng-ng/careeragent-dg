@@ -153,10 +153,10 @@ const PDF_TEXT_SCHEMA = {
 };
 
 export function validateJobFile(file) {
-  if (!file) return "Choose a PDF or DOCX file.";
+  if (!file) return "Choose a PDF, DOCX, or image file.";
   const ext = file.name.split(".").pop()?.toLowerCase();
-  if (!["pdf", "docx"].includes(ext)) {
-    return "Only PDF and DOCX files are supported.";
+  if (!["pdf", "docx", "png", "jpg", "jpeg", "webp"].includes(ext)) {
+    return "Only PDF, DOCX, PNG, JPG, and WEBP files are supported.";
   }
   if (file.size === 0) return "The selected file is empty.";
   if (file.size > 10 * 1024 * 1024) return "The file must be 10 MB or smaller.";

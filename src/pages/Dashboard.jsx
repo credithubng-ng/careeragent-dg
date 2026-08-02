@@ -261,10 +261,10 @@ export default function Dashboard() {
 
       {/* Quick stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <StatCard label="Imported Today" value={stats.jobsImportedToday} icon={Briefcase} accent="blue" />
-        <StatCard label="High Matches" value={stats.highMatches} hint="Score ≥ 80" icon={Flame} accent="green" />
-        <StatCard label="Pending Review" value={stats.pendingReview} icon={Target} accent="amber" />
-        <StatCard label="Avg Match Score" value={stats.avgScore || "—"} icon={TrendingUp} accent="primary" />
+        <Link to="/jobs?view=All"><StatCard label="Imported Today" value={stats.jobsImportedToday} icon={Briefcase} accent="blue" className="h-full hover:shadow-md" /></Link>
+        <Link to="/jobs?minScore=80"><StatCard label="High Matches" value={stats.highMatches} hint="Score ≥ 80" icon={Flame} accent="green" className="h-full hover:shadow-md" /></Link>
+        <Link to="/jobs?status=New"><StatCard label="Pending Review" value={stats.pendingReview} icon={Target} accent="amber" className="h-full hover:shadow-md" /></Link>
+        <Link to="/jobs?view=All"><StatCard label="Avg Match Score" value={stats.avgScore || "—"} icon={TrendingUp} accent="primary" className="h-full hover:shadow-md" /></Link>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">

@@ -11,7 +11,7 @@ import { createOwnedRecord, getOwnedRecord, listOwnedRecords as sharedListOwned 
 import { requireMatchResult } from "@/lib/aiResponse";
 import { rankOpportunity } from "@/lib/opportunityRanking";
 
-const MATCH_TIMEOUT_MS = 90_000;
+const MATCH_TIMEOUT_MS = 180_000;
 const JOB_UPDATE_TIMEOUT_MS = 15_000;
 const SCORE_LABELS = {
   weight_experience: "Relevant experience",

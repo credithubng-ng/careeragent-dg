@@ -21,7 +21,6 @@ import ReplaceUrlTab from "@/components/job-correct/ReplaceUrlTab";
 import PasteDescriptionTab from "@/components/job-correct/PasteDescriptionTab";
 import UploadPdfTab from "@/components/job-correct/UploadPdfTab";
 import ViewRawSourceTab from "@/components/job-correct/ViewRawSourceTab";
-import ComparisonView from "@/components/job-correct/ComparisonView";
 import CorrectionReasonDialog from "@/components/job-correct/CorrectionReasonDialog";
 import SourceHistoryPanel from "@/components/job-correct/SourceHistoryPanel";
 
@@ -29,7 +28,7 @@ const TABS = [
   { id: "edit", label: "Edit Fields" },
   { id: "url", label: "Replace with URL" },
   { id: "paste", label: "Paste Correct Description" },
-  { id: "pdf", label: "Upload Replacement PDF" },
+  { id: "pdf", label: "Upload Document / Image" },
   { id: "raw", label: "View Raw Source" },
 ];
 
