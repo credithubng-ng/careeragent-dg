@@ -106,6 +106,7 @@ export default function JobDetail() {
   const [loading, setLoading] = useState(true);
   const [scoring, setScoring] = useState(null);
   const [runningJobId, setRunningJobId] = useState(null);
+  const [markingApplied, setMarkingApplied] = useState(false);
   const [matchError, setMatchError] = useState(null);
   const { data: candidates, loading: candidatesLoading } = useCollection(
     "Candidate",
@@ -225,6 +226,58 @@ export default function JobDetail() {
     toast.success(`Marked as ${status}`);
   }
 
+  async function markAsApplied() {
+    if (markingApplied) return;
+    const candidate = candidates[0];
+    if (!candidate) {
+      toast.error("Create your Candidate Profile first.");
+      return;
+    }
+
+    const today = new Date().toISOString().slice(0, 10);
+    const dateApplied = prompt("Date applied (YYYY-MM-DD):", today);
+    if (!dateApplied) return;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateApplied) || Number.isNaN(Date.parse(`${dateApplied}T00:00:00`))) {
+      toast.error("Enter a valid date in YYYY-MM-DD format.");
+      return;
+    }
+
+    setMarkingApplied(true);
+    const notice = toast.loading("Moving this job to Applications…");
+    try {
+      const existing = await listOwnedRecords("Application", { job_id: id }, "-created_date", 1);
+      const application = existing[0];
+      const masterCv = getUsableCandidateCVs(cvs).find((cv) => cv.is_master) || getUsableCandidateCVs(cvs)[0];
+      const applicationData = {
+        candidate_id: candidate.id,
+        job_id: id,
+        job_title: job.job_title,
+        employer: job.employer,
+        contact_person: job.contact_person || "",
+        stage: "Applied",
+        date_applied: dateApplied,
+        ...(masterCv ? { cv_id: masterCv.id, cv_name: masterCv.cv_name } : {}),
+      };
+
+      if (application) {
+        await base44.entities.Application.update(application.id, applicationData);
+      } else {
+        await createOwnedRecord("Application", {
+          ...applicationData,
+          application_document_ids: [],
+        });
+      }
+      await base44.entities.Job.update(id, { job_status: "Applied" });
+      setJob((current) => ({ ...current, job_status: "Applied" }));
+      toast.success(application ? "Application moved to Applied." : "Application recorded in the Applied Kanban.", { id: notice });
+      navigate("/applications");
+    } catch (error) {
+      toast.error(error?.message || "Unable to record this application.", { id: notice });
+    } finally {
+      setMarkingApplied(false);
+    }
+  }
+
   async function generatePack() {
     navigate(`/studio?jobId=${id}`);
   }
@@ -275,7 +328,8 @@ export default function JobDetail() {
     { label: "Correct Extraction", icon: Wrench, onClick: () => navigate(`/jobs/${id}/correct?tab=url`), tone: "primary" },
     { label: "Wrong Job Captured", icon: AlertCircle, onClick: () => navigate(`/jobs/${id}/correct?mode=wrong`), tone: "red" },
     { label: "Mark High Priority", icon: Flame, onClick: () => setStatus("High Priority"), tone: "violet" },
-    { label: "Apply", icon: Check, onClick: () => setStatus("Apply"), tone: "green" },
+    { label: "Shortlist to Apply", icon: Check, onClick: () => setStatus("Apply"), tone: "green" },
+    { label: markingApplied ? "Recording…" : "Mark as Applied", icon: Check, onClick: markAsApplied, tone: "green", disabled: markingApplied },
     { label: "Maybe", icon: HelpCircle, onClick: () => setStatus("Maybe"), tone: "amber" },
     { label: "Skip", icon: X, onClick: () => setStatus("Skip"), tone: "slate" },
     { label: "Analyse Job Match", icon: Sparkles, onClick: runMatch, tone: "primary" },
@@ -316,7 +370,7 @@ export default function JobDetail() {
 
       <div className="flex flex-wrap gap-2 mb-6">
         {actions.map((a) => (
-          <button key={a.label} onClick={a.onClick} className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-sm font-medium text-foreground hover:bg-muted">
+          <button key={a.label} onClick={a.onClick} disabled={a.disabled} className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-sm font-medium text-foreground hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50">
             <a.icon className="h-3.5 w-3.5" /> {a.label}
           </button>
         ))}

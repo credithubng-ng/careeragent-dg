@@ -10,6 +10,22 @@ import { createOwnedRecord } from "@/lib/ownedEntities";
 
 const STAGES = ["Identified", "Reviewing", "Preparing", "Ready to Apply", "Applied", "Recruiter Contact", "First Interview", "Further Interview", "Assessment", "Reference Check", "Offer", "Rejected", "Withdrawn"];
 
+const JOB_STATUS_BY_APPLICATION_STAGE = {
+  Identified: "Identified",
+  Reviewing: "Reviewing",
+  Preparing: "Preparing Application",
+  "Ready to Apply": "Apply",
+  Applied: "Applied",
+  "Recruiter Contact": "Applied",
+  "First Interview": "Interview",
+  "Further Interview": "Interview",
+  Assessment: "Interview",
+  "Reference Check": "Interview",
+  Offer: "Offer",
+  Rejected: "Rejected",
+  Withdrawn: "Withdrawn",
+};
+
 async function listOwnedRecords(entityName, query = {}, sort, limit) {
   const user = await base44.auth.me();
   const ownerEmail =
@@ -55,16 +71,18 @@ export default function Applications() {
     const app = apps.find((a) => a.id === res.draggableId);
     if (!app || app.stage === res.destination.droppableId) return;
     try {
-      await base44.entities.Application.update(app.id, { stage: res.destination.droppableId });
-      if (res.destination.droppableId === "Applied") {
-        if (!app.date_applied) {
-          await base44.entities.Application.update(app.id, { date_applied: new Date().toISOString().slice(0, 10) });
-        }
-        try {
-          await base44.entities.Job.update(app.job_id, { job_status: "Applied" });
-        } catch {
-          toast.error("Application moved to Applied, but the Job status could not be updated.");
-        }
+      const destinationStage = res.destination.droppableId;
+      const applicationUpdate = { stage: destinationStage };
+      if (destinationStage === "Applied" && !app.date_applied) {
+        applicationUpdate.date_applied = new Date().toISOString().slice(0, 10);
+      }
+      await base44.entities.Application.update(app.id, applicationUpdate);
+      try {
+        await base44.entities.Job.update(app.job_id, {
+          job_status: JOB_STATUS_BY_APPLICATION_STAGE[destinationStage] || destinationStage,
+        });
+      } catch {
+        toast.error("The Application moved, but the matching Job status could not be updated.");
       }
       refetch();
     } catch { toast.error("Failed to move application"); }
@@ -83,7 +101,6 @@ export default function Applications() {
     const masterCv = cvs.find(
       (cv) => cv.is_master && cv.processing_status === "Ready" && cv.extracted_cv_text?.trim()
     );
-    if (!masterCv) { toast.error("Upload and process a Master CV first."); return; }
     setSaving(true);
     try {
       const existing = await listOwnedRecords("Application", { job_id: job.id }, "-created_date", 1);
@@ -97,10 +114,13 @@ export default function Applications() {
         job_title: job.job_title,
         employer: job.employer,
         contact_person: job.contact_person || "",
-        cv_id: masterCv.id,
-        cv_name: masterCv.cv_name,
+        ...(masterCv ? { cv_id: masterCv.id, cv_name: masterCv.cv_name } : {}),
         stage: newApp.stage,
+        ...(newApp.stage === "Applied" ? { date_applied: new Date().toISOString().slice(0, 10) } : {}),
         application_document_ids: [],
+      });
+      await base44.entities.Job.update(job.id, {
+        job_status: JOB_STATUS_BY_APPLICATION_STAGE[newApp.stage] || newApp.stage,
       });
       setAdding(false); setNewApp({ job_id: "", stage: "Identified" });
       refetch();
