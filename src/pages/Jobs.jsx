@@ -13,7 +13,8 @@ const SAVED_VIEWS = [
   { label: "Closing Soon", filter: (j) => { const d = daysUntil(j.closing_date); return d != null && d >= 0 && d <= 5; } },
   { label: "Remote Roles", filter: (j) => j.work_arrangement === "Remote" },
   { label: "Contract Roles", filter: (j) => ["Contract", "Interim"].includes(j.employment_type) },
-  { label: "All", filter: () => true },
+  { label: "All", filter: (j) => j.job_status !== "Skip" },
+  { label: "Not Interested", filter: (j) => j.job_status === "Skip" },
 ];
 
 export default function Jobs() {
@@ -24,7 +25,8 @@ export default function Jobs() {
   const [filters, setFilters] = useState({ status: searchParams.get("status") || "", employment_type: "", work_arrangement: "", minScore: searchParams.get("minScore") || "" });
 
   const filtered = useMemo(() => {
-    let list = jobs.filter(SAVED_VIEWS.find((v) => v.label === view).filter);
+    const selectedView = SAVED_VIEWS.find((v) => v.label === view) || SAVED_VIEWS.find((v) => v.label === "All");
+    let list = jobs.filter(selectedView.filter);
     if (search) {
       const q = search.toLowerCase();
       list = list.filter((j) => [j.job_title, j.employer, j.location, j.sector].some((f) => (f || "").toLowerCase().includes(q)));
@@ -62,7 +64,7 @@ export default function Jobs() {
         </div>
         <select value={filters.status} onChange={(e) => setFilters({ ...filters, status: e.target.value })} className="rounded-lg border border-input bg-card px-3 py-2 text-sm">
           <option value="">All statuses</option>
-          {["New", "Reviewing", "High Priority", "Apply", "Maybe", "Skip", "Preparing Application", "Applied", "Interview", "Offer", "Rejected", "Withdrawn", "Expired"].map((s) => <option key={s} value={s}>{s}</option>)}
+          {["New", "Reviewing", "High Priority", "Apply", "Maybe", "Skip", "Preparing Application", "Applied", "Interview", "Offer", "Rejected", "Withdrawn", "Expired"].map((s) => <option key={s} value={s}>{s === "Skip" ? "Not Interested" : s}</option>)}
         </select>
         <select value={filters.employment_type} onChange={(e) => setFilters({ ...filters, employment_type: e.target.value })} className="rounded-lg border border-input bg-card px-3 py-2 text-sm">
           <option value="">All types</option>

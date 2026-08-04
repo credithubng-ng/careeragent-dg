@@ -108,6 +108,7 @@ export default function JobDetail() {
   const [runningJobId, setRunningJobId] = useState(null);
   const [markingApplied, setMarkingApplied] = useState(false);
   const [matchError, setMatchError] = useState(null);
+  const [changingStatus, setChangingStatus] = useState(null);
   const { data: candidates, loading: candidatesLoading } = useCollection(
     "Candidate",
     () => listOwnedRecords("Candidate")
@@ -220,10 +221,19 @@ export default function JobDetail() {
     }
   }
 
-  async function setStatus(status) {
-    await base44.entities.Job.update(id, { job_status: status });
-    setJob({ ...job, job_status: status });
-    toast.success(`Marked as ${status}`);
+  async function setStatus(status, successMessage = `Marked as ${status}`) {
+    if (changingStatus) return;
+    setChangingStatus(status);
+    try {
+      await base44.entities.Job.update(id, { job_status: status });
+      setJob((current) => ({ ...current, job_status: status }));
+      toast.success(successMessage);
+      if (status === "Skip") navigate("/jobs");
+    } catch (error) {
+      toast.error(error?.message || "Unable to update this job. Please try again.");
+    } finally {
+      setChangingStatus(null);
+    }
   }
 
   async function markAsApplied() {
@@ -328,10 +338,10 @@ export default function JobDetail() {
     { label: "Correct Extraction", icon: Wrench, onClick: () => navigate(`/jobs/${id}/correct?tab=url`), tone: "primary" },
     { label: "Wrong Job Captured", icon: AlertCircle, onClick: () => navigate(`/jobs/${id}/correct?mode=wrong`), tone: "red" },
     { label: "Mark High Priority", icon: Flame, onClick: () => setStatus("High Priority"), tone: "violet" },
-    { label: "Shortlist to Apply", icon: Check, onClick: () => setStatus("Apply"), tone: "green" },
+    { label: changingStatus === "Apply" ? "Shortlisting…" : "Shortlist to Apply", icon: Check, onClick: () => setStatus("Apply", "Added to Apply Today."), tone: "green", disabled: Boolean(changingStatus) },
     { label: markingApplied ? "Recording…" : "Mark as Applied", icon: Check, onClick: markAsApplied, tone: "green", disabled: markingApplied },
     { label: "Maybe", icon: HelpCircle, onClick: () => setStatus("Maybe"), tone: "amber" },
-    { label: "Skip", icon: X, onClick: () => setStatus("Skip"), tone: "slate" },
+    { label: changingStatus === "Skip" ? "Removing…" : "Not Interested", icon: X, onClick: () => setStatus("Skip", "Removed from the active Job Board."), tone: "slate", disabled: Boolean(changingStatus) },
     { label: "Analyse Job Match", icon: Sparkles, onClick: runMatch, tone: "primary" },
     { label: "Generate Application Pack", icon: Wand2, onClick: generatePack, tone: "primary" },
     { label: "Add Follow-Up", icon: Plus, onClick: addFollowUp, tone: "blue" },
