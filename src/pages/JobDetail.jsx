@@ -221,12 +221,12 @@ export default function JobDetail() {
     }
   }
 
-  async function setStatus(status, successMessage = `Marked as ${status}`) {
+  async function setStatus(status, successMessage = `Marked as ${status}`, extraFields = {}) {
     if (changingStatus) return;
     setChangingStatus(status);
     try {
-      await base44.entities.Job.update(id, { job_status: status });
-      setJob((current) => ({ ...current, job_status: status }));
+      await base44.entities.Job.update(id, { job_status: status, ...extraFields });
+      setJob((current) => ({ ...current, job_status: status, ...extraFields }));
       toast.success(successMessage);
       if (status === "Skip") navigate("/jobs");
     } catch (error) {
@@ -346,7 +346,7 @@ export default function JobDetail() {
     { label: "Generate Application Pack", icon: Wand2, onClick: generatePack, tone: "primary" },
     { label: "Add Follow-Up", icon: Plus, onClick: addFollowUp, tone: "blue" },
     { label: "Add Interview", icon: CalendarPlus, onClick: addInterview, tone: "violet" },
-    { label: "Mark Expired", icon: AlertTriangle, onClick: () => { setStatus("Expired"); base44.entities.Job.update(id, { expired_status: true }); }, tone: "red" },
+    { label: changingStatus === "Expired" ? "Marking Expired…" : "Mark Expired", icon: AlertTriangle, onClick: () => setStatus("Expired", "Job marked as expired.", { expired_status: true }), tone: "red", disabled: Boolean(changingStatus) },
     { label: "Enrich & Reassess", icon: Sparkles, onClick: () => enrichAndReassess(), tone: "primary" },
   ];
 
