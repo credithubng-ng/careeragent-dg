@@ -259,6 +259,12 @@ export async function generateApplicationSection(section, job, candidate, cv, ma
     ...(match?.partial_reasons || []),
     ...(match?.transferable_strengths || []),
   ];
+  const categoryGuidance = Object.values(match?.category_analysis || {})
+    .filter((item) => item?.explanation)
+    .map((item) => item.explanation);
+  if (verifiedMatchEvidence.length === 0) {
+    verifiedMatchEvidence.push(...categoryGuidance);
+  }
   const sectionPrompts = {
     "Tailored Profile": "a revised professional summary aligned with the job's requirements and my genuine experience. Use a clear heading and 2–3 well-structured paragraphs",
     "CV Improvement": "CV improvement recommendations: keywords to include, experience to emphasise, achievements to move higher, skills that need clearer evidence, content less relevant, and suggested section ordering. Organise under clear subheadings with bullet points for each recommendation. Do NOT invent skills. Do NOT alter factual dates, job titles, employers or achievements.",
@@ -274,37 +280,44 @@ You are a specialist career application writer for a senior Data Governance prof
     concerns: match?.concerns || [],
     questions: match?.questions || [],
   }, null, 2)}\n\nJOB:\n${JSON.stringify(job)}\n${questionText ? `\nAPPLICATION QUESTION TO ANSWER:\n${questionText}\n` : ""}`;
-  const res = await base44.integrations.Core.InvokeLLM({
-    model: "gpt_5_4",
-    prompt,
-    response_json_schema: {
-      type: "object",
-      properties: {
-        content: { type: "string", minLength: 1 },
-        evidence_quotes: {
-          type: "array",
-          minItems: 1,
-          items: { type: "string", minLength: 4 },
-        },
-      },
-      required: ["content", "evidence_quotes"],
-    },
-  });
-
-  const draft = requireAIObject(res, "application draft");
-  const content = typeof draft.content === "string" ? draft.content.trim() : "";
-  const evidenceQuotes = Array.isArray(draft.evidence_quotes) ? draft.evidence_quotes : [];
   const profileText = JSON.stringify(candidateContext.candidate_profile);
   const cvText = candidateContext.master_cv_text;
-  const unverifiedEvidence = evidenceQuotes.filter(
-    (quote) => !hasGroundedEvidence(quote, profileText) && !hasGroundedEvidence(quote, cvText)
-  );
 
-  if (!content || evidenceQuotes.length === 0 || unverifiedEvidence.length > 0) {
-    throw new Error("The generated draft contained evidence that could not be verified. Nothing was saved.");
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const retryInstruction = attempt === 0 ? "" : `
+
+IMPORTANT CORRECTION: The previous draft could not be verified because at least one evidence quote was paraphrased. Regenerate the complete document. Every item in evidence_quotes must be copied word-for-word from the Master CV text or profile values above. Do not place summaries, conclusions or job requirements in evidence_quotes.`;
+    const draft = await invokeAI({
+      model: "gpt_5_4",
+      prompt: `${prompt}${retryInstruction}`,
+      response_json_schema: {
+        type: "object",
+        properties: {
+          content: { type: "string", minLength: 1 },
+          evidence_quotes: {
+            type: "array",
+            minItems: 1,
+            items: { type: "string", minLength: 4 },
+          },
+        },
+        required: ["content", "evidence_quotes"],
+      },
+    }, "application draft");
+
+    const content = typeof draft.content === "string" ? draft.content.trim() : "";
+    const evidenceQuotes = Array.isArray(draft.evidence_quotes)
+      ? draft.evidence_quotes.map((quote) => String(quote || "").trim()).filter(Boolean)
+      : [];
+    const unverifiedEvidence = evidenceQuotes.filter(
+      (quote) => !hasGroundedEvidence(quote, profileText) && !hasGroundedEvidence(quote, cvText)
+    );
+
+    if (content && evidenceQuotes.length > 0 && unverifiedEvidence.length === 0) {
+      return { content, evidenceQuotes };
+    }
   }
 
-  return { content, evidenceQuotes };
+  throw new Error("The draft could not be grounded safely after two attempts. Check that the Master CV contains enough evidence for this role, then try again.");
 }
 
 export async function generateInterviewQuestions(job, candidate) {

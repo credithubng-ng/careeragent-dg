@@ -200,13 +200,8 @@ export default function ApplicationStudio() {
       toast.error("Upload and process a Master CV before generating application content.");
       return;
     }
-    const verifiedEvidence = [
-      ...(match?.strong_reasons || []),
-      ...(match?.partial_reasons || []),
-      ...(match?.transferable_strengths || []),
-    ];
-    if (!match || verifiedEvidence.length === 0) {
-      toast.error("Run a successful AI Match Analysis for this job first.");
+    if (!match) {
+      toast.error("Run an AI Match Analysis for this job first.");
       return;
     }
     setGenerating(section);
