@@ -116,20 +116,35 @@ export default function JobReviewForm({
   function renderLongField(key) {
     const value = review[key];
     const empty = isFieldEmpty(value);
+    const isJobDescription = key === "job_description";
     return (
       <div key={key}>
-        <label className="flex items-center gap-1 text-xs font-medium text-muted-foreground mb-1">
-          <span>{fieldLabel(key)}</span>
-          {empty && <span className="rounded bg-amber-100 px-1 text-[10px] font-medium text-amber-700">Missing</span>}
-        </label>
+        <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+          <label className="flex items-center gap-1 text-xs font-medium text-muted-foreground">
+            <span>{fieldLabel(key)}</span>
+            {empty && <span className="rounded bg-amber-100 px-1 text-[10px] font-medium text-amber-700">Missing</span>}
+          </label>
+          {isJobDescription && !empty && (
+            <span className="text-[11px] text-muted-foreground">
+              {String(value).length.toLocaleString()} characters · no character limit
+            </span>
+          )}
+        </div>
         <textarea
           value={value || ""}
           onChange={(e) => handleFieldChange(key, e.target.value)}
+          rows={isJobDescription ? 18 : 6}
           className={cn(
-            "w-full min-h-[120px] rounded-lg border bg-card p-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring",
+            "w-full resize-y rounded-lg border bg-card p-3 text-sm leading-relaxed focus:outline-none focus:ring-2 focus:ring-ring",
+            isJobDescription ? "min-h-[420px]" : "min-h-[120px]",
             empty ? "border-amber-200" : "border-input"
           )}
         />
+        {isJobDescription && (
+          <p className="mt-1 text-[11px] text-muted-foreground">
+            The complete pasted job description is retained and will be saved. Resize this field vertically if you need more viewing space.
+          </p>
+        )}
       </div>
     );
   }
