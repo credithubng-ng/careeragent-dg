@@ -10,6 +10,7 @@ import { toast } from "react-hot-toast";
 import { createOwnedRecord, getOwnedRecord, listOwnedRecords as sharedListOwned } from "@/lib/ownedEntities";
 import { requireMatchResult } from "@/lib/aiResponse";
 import { rankOpportunity } from "@/lib/opportunityRanking";
+import { hydrateJobDescription } from "@/lib/jobDescriptionStorage";
 
 const MATCH_TIMEOUT_MS = 180_000;
 const JOB_UPDATE_TIMEOUT_MS = 15_000;
@@ -132,7 +133,7 @@ export default function JobDetail() {
         const j = await getOwnedRecord("Job", id);
         if (!j) throw new Error("This job could not be found in Angel's account.");
         if (!active) return;
-        setJob(j);
+        setJob(await hydrateJobDescription(j));
         const settings = await listOwnedRecords("ScoringSetting", { active: true });
         if (active) setScoring(settings[0] || null);
       } catch (error) {
@@ -479,7 +480,11 @@ export default function JobDetail() {
           </SectionCard>
 
           {/* Job description */}
-          <SectionCard title="Job Description">
+          <SectionCard
+            title="Job Description"
+            description={job.job_description_character_count ? `${Number(job.job_description_character_count).toLocaleString()} characters` : undefined}
+            actions={job.job_description_file_url ? <a href={job.job_description_file_url} target="_blank" rel="noreferrer" className="text-xs font-medium text-primary hover:underline">Open full source text</a> : undefined}
+          >
             {job.job_description ? <p className="text-sm text-muted-foreground whitespace-pre-wrap">{job.job_description}</p> : <p className="text-sm text-muted-foreground">No description provided.</p>}
           </SectionCard>
 

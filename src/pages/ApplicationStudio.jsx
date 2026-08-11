@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { createOwnedRecord } from "@/lib/ownedEntities";
 import DocumentView, { markdownToHtml } from "@/components/DocumentView";
 import ReadinessChecklist from "@/components/ReadinessChecklist";
+import { hydrateJobDescription } from "@/lib/jobDescriptionStorage";
 
 const SECTIONS = [
   { type: "Tailored Profile", label: "Tailored Profile", desc: "Revised professional summary aligned with the role" },
@@ -107,7 +108,7 @@ export default function ApplicationStudio() {
           listOwnedRecords("Application", { job_id: jobId }, "-created_date", 1),
         ]);
         if (!jobs[0]) throw new Error("This job was not found in your account.");
-        setJob(jobs[0]);
+        setJob(await hydrateJobDescription(jobs[0]));
         setDocs(documents);
         setMatch(matches[0] || null);
         setApplication(applications[0] || null);

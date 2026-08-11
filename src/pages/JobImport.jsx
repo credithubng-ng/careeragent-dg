@@ -19,6 +19,7 @@ import { toast } from "react-hot-toast";
 import { cn } from "@/lib/utils";
 import { requireMatchResult } from "@/lib/aiResponse";
 import { Link as LinkIcon, ClipboardPaste, FileText } from "lucide-react";
+import { prepareJobDescriptionForStorage } from "@/lib/jobDescriptionStorage";
 
 const MATCH_TIMEOUT_MS = 120_000;
 
@@ -127,13 +128,14 @@ export default function JobImport() {
     try {
       const candidate = candidates[0];
       const extractionStatus = computeExtractionStatus(review);
-      const jobData = {
+      const completeJobData = {
         ...payload,
         candidate_id: candidate?.id || "",
         import_method: importMethod,
         extraction_status: extractionStatus,
         extraction_method: extractionMethod,
       };
+      const { storedJob: jobData, fullText } = await prepareJobDescriptionForStorage(completeJobData);
 
       let savedJob;
       if (existingJob) {
@@ -178,7 +180,7 @@ export default function JobImport() {
 
       setMatchStep(3); // "Running AI Match…"
       const result = requireMatchResult(await withTimeout(
-        analyseJobMatch(savedJob, candidate, cvs, scoringSettings[0]),
+        analyseJobMatch({ ...savedJob, job_description: fullText }, candidate, cvs, scoringSettings[0]),
         MATCH_TIMEOUT_MS,
         "Match analysis timed out. The job is saved — you can run match analysis from the job page."
       ));

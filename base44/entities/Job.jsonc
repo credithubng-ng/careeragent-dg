@@ -179,6 +179,16 @@
     "job_description": {
       "type": "string"
     },
+    "job_description_file_url": {
+      "type": "string"
+    },
+    "job_description_character_count": {
+      "type": "number"
+    },
+    "job_description_truncated": {
+      "type": "boolean",
+      "default": false
+    },
     "responsibilities": {
       "type": "string"
     },
