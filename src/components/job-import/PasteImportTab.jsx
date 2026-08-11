@@ -4,8 +4,6 @@ import { SectionCard } from "@/components/ui-kit";
 import { Sparkles, Loader2, AlertCircle, ExternalLink } from "lucide-react";
 import { recoverJobFields } from "@/lib/jobTextRecovery";
 
-const MAX_JOB_TEXT = 15000;
-
 const DOMAIN_LABELS = {
   "linkedin.com": "LinkedIn",
   "indeed.com": "Indeed",
@@ -26,7 +24,6 @@ export default function PasteImportTab({ onExtracted, initialText, fallbackConte
   async function handleExtract() {
     if (!text.trim()) return;
     if (text.trim().length < 100) return;
-    if (text.trim().length > MAX_JOB_TEXT) return;
     setExtracting(true);
     setError("");
     try {
@@ -49,7 +46,6 @@ export default function PasteImportTab({ onExtracted, initialText, fallbackConte
   }
 
   const tooShort = text.trim().length > 0 && text.trim().length < 100;
-  const tooLong = text.trim().length > MAX_JOB_TEXT;
 
   return (
     <div className="space-y-4">
@@ -106,7 +102,7 @@ export default function PasteImportTab({ onExtracted, initialText, fallbackConte
         <div className="mt-2 flex items-center justify-between text-xs text-muted-foreground">
           <span>
             {tooShort && <span className="text-amber-600">Add more text — at least 100 characters for reliable extraction.</span>}
-            {tooLong && <span className="text-rose-600">Text is too long (max {MAX_JOB_TEXT.toLocaleString()} characters). Trim and try again.</span>}
+            {!tooShort && text.trim() && <span>Full pasted text will be retained for review.</span>}
           </span>
           <span>{text.trim().length.toLocaleString()} chars</span>
         </div>
@@ -116,7 +112,7 @@ export default function PasteImportTab({ onExtracted, initialText, fallbackConte
         <div className="flex justify-end mt-4">
           <button
             onClick={handleExtract}
-            disabled={extracting || !text.trim() || tooShort || tooLong}
+            disabled={extracting || !text.trim() || tooShort}
             className="inline-flex items-center gap-2 rounded-lg bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {extracting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
