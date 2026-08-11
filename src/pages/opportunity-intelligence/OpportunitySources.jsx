@@ -1,22 +1,30 @@
 import React, { useState } from "react";
 import { useCollection } from "@/lib/entityHooks";
 import { listOwnedRecords, createOwnedRecord, updateOwnedRecord, deleteOwnedRecord } from "@/lib/ownedEntities";
-import { PageHeader, SectionCard, Loading, EmptyState } from "@/components/ui-kit";
+import { PageHeader, Loading, EmptyState } from "@/components/ui-kit";
 import OINav from "@/components/opportunity-intelligence/OINav";
 import { SOURCE_TYPE_ICONS, MONITORING_STATUS_STYLES } from "@/lib/oiUtils";
-import { todayISO, ukDateTime } from "@/lib/format";
-import { Plus, Edit2, Trash2, Power, Pause, Play, Archive, Zap } from "lucide-react";
+import { ukDateTime } from "@/lib/format";
+import { Plus, Edit2, Trash2, Pause, Play, Archive, Zap, Linkedin, Upload } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { cn } from "@/lib/utils";
+import { Link } from "react-router-dom";
 
 const SOURCE_TYPES = Object.keys(SOURCE_TYPE_ICONS);
 const MONITORING_STATUSES = Object.keys(MONITORING_STATUS_STYLES);
 const FREQUENCIES = ["Hourly", "Every 2 Hours", "Every 4 Hours", "Every 6 Hours", "Every 12 Hours", "Daily", "Weekdays Only", "Weekends Only", "Manual Only"];
+const LINKEDIN_JOBS_URL = "https://www.linkedin.com/jobs/search/?keywords=Data%20Governance&location=United%20Kingdom";
+
+function isLinkedInSource(source) {
+  return /linkedin/i.test(`${source?.source_name || ""} ${source?.website_or_endpoint || ""}`);
+}
 
 export default function OpportunitySources() {
   const { data: sources, loading, refetch } = useCollection("OpportunitySource", () => listOwnedRecords("OpportunitySource", {}, "-created_date", 200));
   const [editing, setEditing] = useState(null);
   const [showForm, setShowForm] = useState(false);
+  const [addingLinkedIn, setAddingLinkedIn] = useState(false);
+  const hasLinkedIn = sources.some(isLinkedInSource);
 
   function openAdd() { setEditing(null); setShowForm(true); }
   function openEdit(s) { setEditing(s); setShowForm(true); }
@@ -33,6 +41,11 @@ export default function OpportunitySources() {
   }
 
   async function runNow(s) {
+    if (isLinkedInSource(s)) {
+      window.open(s.website_or_endpoint || LINKEDIN_JOBS_URL, "_blank", "noopener,noreferrer");
+      toast.success("LinkedIn Jobs opened. Import a vacancy by pasting its description or uploading screenshots.");
+      return;
+    }
     try {
       await updateOwnedRecord("OpportunitySource", s.id, { last_checked: new Date().toISOString() });
       refetch();
@@ -40,12 +53,38 @@ export default function OpportunitySources() {
     } catch { toast.error("Failed to trigger run"); }
   }
 
+  async function addLinkedInSource() {
+    if (hasLinkedIn || addingLinkedIn) return;
+    setAddingLinkedIn(true);
+    try {
+      await createOwnedRecord("OpportunitySource", {
+        source_name: "LinkedIn Jobs",
+        source_type: "Job Board",
+        website_or_endpoint: LINKEDIN_JOBS_URL,
+        priority: 9,
+        enabled: true,
+        monitoring_status: "Manual Only",
+        search_frequency: "Manual Only",
+        notes: "Compliant assisted source. Open the targeted LinkedIn search, then import selected vacancies using paste or screenshots. LinkedIn email alerts continue through Gmail.",
+      });
+      await refetch();
+      toast.success("LinkedIn Jobs added as an assisted source.");
+    } catch (error) {
+      toast.error(error?.message || "Unable to add LinkedIn Jobs.");
+    } finally {
+      setAddingLinkedIn(false);
+    }
+  }
+
   if (loading) return <Loading />;
 
   return (
     <div>
       <PageHeader title="Opportunity Sources" subtitle="Manage every channel through which vacancies are discovered"
-        actions={<button onClick={openAdd} className="inline-flex items-center gap-2 rounded-lg bg-primary text-primary-foreground px-4 py-2 text-sm font-medium"><Plus className="h-4 w-4" /> Add Source</button>} />
+        actions={<div className="flex flex-wrap gap-2">
+          {!hasLinkedIn && <button onClick={addLinkedInSource} disabled={addingLinkedIn} className="inline-flex items-center gap-2 rounded-lg bg-[#0A66C2] px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:-translate-y-0.5 hover:bg-[#004182] hover:shadow-md disabled:opacity-50"><Linkedin className="h-4 w-4" /> {addingLinkedIn ? "Adding…" : "Add LinkedIn"}</button>}
+          <button onClick={openAdd} className="inline-flex items-center gap-2 rounded-lg bg-primary text-primary-foreground px-4 py-2 text-sm font-medium"><Plus className="h-4 w-4" /> Add Source</button>
+        </div>} />
       <OINav />
       {sources.length === 0 ? (
         <EmptyState title="No opportunity sources configured" description="Add an email source, job board, employer career site or other channel to start monitoring for vacancies." action={<button onClick={openAdd} className="rounded-lg bg-primary text-primary-foreground px-4 py-2 text-sm font-medium">Add Source</button>} />
@@ -70,6 +109,7 @@ export default function OpportunitySources() {
                   </div>
                   <div className="flex flex-wrap gap-1 shrink-0">
                     <button onClick={() => runNow(s)} title="Run Now" className="rounded-lg p-2 hover:bg-muted"><Zap className="h-4 w-4" /></button>
+                    {isLinkedInSource(s) && <Link to="/jobs/import" title="Import a LinkedIn vacancy" className="rounded-lg p-2 hover:bg-muted text-[#0A66C2]"><Upload className="h-4 w-4" /></Link>}
                     <button onClick={() => openEdit(s)} title="Edit" className="rounded-lg p-2 hover:bg-muted"><Edit2 className="h-4 w-4" /></button>
                     {s.monitoring_status === "Active" ? (
                       <button onClick={() => setStatus(s, "Paused")} title="Pause" className="rounded-lg p-2 hover:bg-muted"><Pause className="h-4 w-4" /></button>
