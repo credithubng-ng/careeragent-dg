@@ -1,6 +1,7 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
 import {
   identifyEmailSource,
+  KNOWN_SOURCE_DEFAULTS,
   extractEmailBody,
   extractSender,
   extractHeader,
@@ -75,7 +76,14 @@ export default async function(req: Request): Promise<Response> {
 
     // Get email sources (active only) — used for sender-domain search and filtering
     const emailSources = await base44.asServiceRole.entities.EmailSource.filter({ owner_email: ownerEmail });
-    const activeSources = emailSources.filter((s: any) => s.active_status);
+    const configuredSources = emailSources.filter((s: any) => s.active_status);
+    // A newly connected account may not yet have EmailSource rows. Previously the
+    // Gmail search still ran, but every returned message was then rejected by the
+    // known-sender check. Use the shared built-in source catalogue as the effective
+    // configuration so connecting Gmail is sufficient to run the first import.
+    const activeSources = configuredSources.length > 0
+      ? configuredSources
+      : KNOWN_SOURCE_DEFAULTS.map((source) => ({ ...source, active_status: true }));
 
     // Determine which messages to process
     let messages: any[] = [];
