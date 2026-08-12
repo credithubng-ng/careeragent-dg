@@ -40,21 +40,22 @@ export default async function(req: Request): Promise<Response> {
       }
     }
 
-    // Get candidate record
-    const candidates = await base44.asServiceRole.entities.Candidate.list();
+    const ownerEmail = typeof user?.email === "string" ? user.email.trim().toLowerCase() : "";
+    if (!ownerEmail) {
+      return Response.json(
+        { error: "Unable to identify the signed-in account. Please log out, sign in again and retry." },
+        { status: 401 }
+      );
+    }
+
+    // Scope every service-role read to the signed-in user. Service role bypasses RLS,
+    // so unfiltered list calls could otherwise select another account's records.
+    const candidates = await base44.asServiceRole.entities.Candidate.filter({ owner_email: ownerEmail });
     const candidate = candidates[0];
     if (!candidate) {
       return Response.json(
         { error: "No candidate profile found. Please create your candidate profile first." },
         { status: 400 }
-      );
-    }
-
-    const ownerEmail = candidate.owner_email || user?.email;
-    if (!ownerEmail) {
-      return Response.json(
-        { error: "Unable to determine owner email. Please log in and try again." },
-        { status: 401 }
       );
     }
 
@@ -73,7 +74,7 @@ export default async function(req: Request): Promise<Response> {
     const authHeader = { Authorization: `Bearer ${accessToken}` };
 
     // Get email sources (active only) — used for sender-domain search and filtering
-    const emailSources = await base44.asServiceRole.entities.EmailSource.list();
+    const emailSources = await base44.asServiceRole.entities.EmailSource.filter({ owner_email: ownerEmail });
     const activeSources = emailSources.filter((s: any) => s.active_status);
 
     // Determine which messages to process
@@ -105,11 +106,11 @@ export default async function(req: Request): Promise<Response> {
     }
 
     // Get existing data for duplicate detection
-    const existingJobs = await base44.asServiceRole.entities.Job.list("-created_date", 500);
-    const existingEmailImports = await base44.asServiceRole.entities.EmailImport.list("-created_date", 200);
-    const allCVs = await base44.asServiceRole.entities.CV.list();
+    const existingJobs = await base44.asServiceRole.entities.Job.filter({ owner_email: ownerEmail }, "-created_date", 500);
+    const existingEmailImports = await base44.asServiceRole.entities.EmailImport.filter({ owner_email: ownerEmail }, "-created_date", 200);
+    const allCVs = await base44.asServiceRole.entities.CV.filter({ owner_email: ownerEmail });
     const usableCVs = allCVs.filter((cv: any) => cv.processing_status === "Ready" && cv.extracted_cv_text?.trim());
-    const scoringSettings = await base44.asServiceRole.entities.ScoringSetting.list();
+    const scoringSettings = await base44.asServiceRole.entities.ScoringSetting.filter({ owner_email: ownerEmail });
     const scoring = scoringSettings.find((s: any) => s.active_status) || scoringSettings[0];
 
     let jobsImported = 0;

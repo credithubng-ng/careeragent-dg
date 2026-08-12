@@ -15,6 +15,7 @@ export default function GmailConnectionCard() {
   const [importing, setImporting] = useState(false);
   const [summary, setSummary] = useState(null);
   const [gmailAddress, setGmailAddress] = useState("");
+  const [connectionError, setConnectionError] = useState("");
 
   const { data: emailImports } = useCollection("EmailImport", () => listOwnedRecords("EmailImport", {}, "-created_date", 200));
   const { data: emailJobs } = useCollection("Job", () => listOwnedRecords("Job", { discovered_from_email: true }, "-created_date", 500));
@@ -25,6 +26,7 @@ export default function GmailConnectionCard() {
       if (!authed) { setLoading(false); return; }
       const me = await base44.auth.me();
       setUser(me);
+      setConnectionError("");
 
       // Check connection by calling the backend function with a lightweight check
       try {
@@ -40,8 +42,8 @@ export default function GmailConnectionCard() {
         if (err?.response?.data?.not_connected) {
           setConnected(false);
         } else {
-          setConnected(true);
-          setGmailAddress(me.email || "");
+          setConnected(false);
+          setConnectionError(err?.response?.data?.error || err?.message || "Unable to verify the Gmail connection.");
         }
       }
     } catch {
@@ -134,6 +136,10 @@ export default function GmailConnectionCard() {
           <p className="text-sm text-muted-foreground mt-1 max-w-md">
             Connect your Gmail account to import job vacancies from job-alert emails. CareerAgent searches for emails from known job-alert senders (Indeed, LinkedIn, Totaljobs, etc.) — it will never read your other mail or send emails.
           </p>
+          <p className="mt-2 max-w-md text-xs text-amber-700">
+            Gmail access does not transfer when the CareerAgent login email changes. Reconnect it once for this account.
+          </p>
+          {connectionError && <p role="alert" className="mt-2 max-w-md text-xs text-rose-600">{connectionError}</p>}
           <button
             onClick={handleConnect}
             className="mt-4 inline-flex items-center gap-2 rounded-lg bg-primary text-primary-foreground px-4 py-2 text-sm font-medium hover:bg-primary/90"
