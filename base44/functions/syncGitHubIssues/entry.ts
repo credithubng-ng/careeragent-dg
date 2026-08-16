@@ -17,12 +17,12 @@ export default async function(req: Request) {
       "User-Agent": "CareerAgent-DG"
     };
 
-    let owner, name;
+    let owner: string, name: string;
     if (repo && repo.includes("/")) {
       [owner, name] = repo.split("/");
     } else {
       const meRes = await fetch("https://api.github.com/user", { headers });
-      const me = await meRes.json();
+      const me: any = await meRes.json();
       owner = me.login;
       name = repo || "career-agent-dg";
     }
@@ -36,10 +36,10 @@ export default async function(req: Request) {
       const errText = await res.text();
       return Response.json({ error: `GitHub API ${res.status}: ${errText}` }, { status: 502 });
     }
-    const items = await res.json();
+    const items: any[] = await res.json();
     const issues = items
-      .filter((i) => !i.pull_request)
-      .map((i) => ({
+      .filter((i: any) => !i.pull_request)
+      .map((i: any) => ({
         id: i.id,
         number: i.number,
         title: i.title,
@@ -48,14 +48,14 @@ export default async function(req: Request) {
         repo: i.repository_url
           ? i.repository_url.replace("https://api.github.com/repos/", "")
           : (i.repository ? i.repository.full_name : `${owner}/${name}`),
-        labels: (i.labels || []).map((l) => l.name),
+        labels: (i.labels || []).map((l: any) => l.name),
         created_at: i.created_at,
         updated_at: i.updated_at,
         assignee: i.assignee ? i.assignee.login : null
       }));
 
     return Response.json({ issues, repo: `${owner}/${name}`, count: issues.length });
-  } catch (error) {
+  } catch (error: any) {
     return Response.json({ error: error.message }, { status: 500 });
   }
 }
