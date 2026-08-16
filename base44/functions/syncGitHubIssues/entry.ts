@@ -1,6 +1,6 @@
 import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
 
-export default async function(req) {
+export default async function(req: Request) {
   try {
     const base44 = createClientFromRequest(req);
     const user = await base44.auth.me();

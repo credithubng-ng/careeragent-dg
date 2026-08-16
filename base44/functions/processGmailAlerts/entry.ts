@@ -119,7 +119,7 @@ export default async function(req: Request): Promise<Response> {
     const allCVs = await base44.asServiceRole.entities.CV.filter({ owner_email: ownerEmail });
     const usableCVs = allCVs.filter((cv: any) => cv.processing_status === "Ready" && cv.extracted_cv_text?.trim());
     const scoringSettings = await base44.asServiceRole.entities.ScoringSetting.filter({ owner_email: ownerEmail });
-    const scoring = scoringSettings.find((s: any) => s.active_status) || scoringSettings[0];
+    const scoring = scoringSettings.find((s: any) => s.active) || scoringSettings[0];
 
     let jobsImported = 0;
     let duplicatesSkipped = 0;

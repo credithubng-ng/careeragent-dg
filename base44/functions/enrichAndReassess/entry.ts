@@ -31,7 +31,7 @@ export default async function(req: Request): Promise<Response> {
 
     // Get scoring settings (owned by this user only)
     const scoringSettings = await base44.asServiceRole.entities.ScoringSetting.list();
-    const scoring = scoringSettings.find((s: any) => s.owner_email === user.email && s.active_status) || scoringSettings[0];
+    const scoring = scoringSettings.find((s: any) => s.owner_email === user.email && s.active) || scoringSettings[0];
 
     // Get jobs to process
     let jobs: any[] = [];
