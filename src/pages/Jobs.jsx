@@ -20,7 +20,7 @@ const SAVED_VIEWS = [
 export default function Jobs() {
   const [searchParams] = useSearchParams();
   const { data: jobs, loading, refetch } = useCollection("Job", () => listOwnedRecords("Job", {}, "-created_date", 300));
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState(searchParams.get("employer") || "");
   const [view, setView] = useState(searchParams.get("view") || "All");
   const [filters, setFilters] = useState({ status: searchParams.get("status") || "", employment_type: "", work_arrangement: "", minScore: searchParams.get("minScore") || "" });
 

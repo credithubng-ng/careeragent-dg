@@ -1,4 +1,5 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import { useCollection } from "@/lib/entityHooks";
 import { listOwnedRecords, createOwnedRecord, updateOwnedRecord, deleteOwnedRecord } from "@/lib/ownedEntities";
 import { PageHeader, SectionCard, Loading, EmptyState } from "@/components/ui-kit";
@@ -16,6 +17,7 @@ const EMPLOYER_STATUSES = ["Monitoring", "Paused", "Archived"];
 
 export default function TargetEmployers() {
   const { data: employers, loading, refetch } = useCollection("TargetEmployer", () => listOwnedRecords("TargetEmployer", {}, "-created_date", 200));
+  const { data: jobs, loading: jobsLoading } = useCollection("Job", () => listOwnedRecords("Job", {}, "-created_date", 300));
   const [editing, setEditing] = useState(null);
   const [showForm, setShowForm] = useState(false);
   const [showStarter, setShowStarter] = useState(false);
@@ -50,7 +52,19 @@ export default function TargetEmployers() {
     } catch { toast.error("Failed to import employers"); }
   }
 
-  if (loading) return <Loading />;
+  const vacanciesByEmployer = useMemo(() => {
+    const grouped = new Map();
+    jobs
+      .filter(job => !["Skip", "Expired", "Rejected", "Withdrawn"].includes(job.job_status))
+      .forEach(job => {
+        const key = normaliseEmployerName(job.employer);
+        if (!key) return;
+        grouped.set(key, [...(grouped.get(key) || []), job]);
+      });
+    return grouped;
+  }, [jobs]);
+
+  if (loading || jobsLoading) return <Loading />;
 
   return (
     <div>
@@ -64,7 +78,9 @@ export default function TargetEmployers() {
         <EmptyState title="No target employers yet" description="Add employers you want to monitor for vacancies, or use the starter pack to import a curated list." action={<button onClick={openAdd} className="rounded-lg bg-primary text-primary-foreground px-4 py-2 text-sm font-medium">Add Employer</button>} />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          {employers.map(e => (
+          {employers.map(e => {
+            const employerVacancies = vacanciesByEmployer.get(normaliseEmployerName(e.employer_name)) || [];
+            return (
             <div key={e.id} className="rounded-xl border border-border bg-card p-4 shadow-sm">
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
@@ -88,21 +104,45 @@ export default function TargetEmployers() {
                 </div>
               </div>
               <div className="grid grid-cols-4 gap-2 mt-3 text-center">
-                <div><div className="text-sm font-semibold">{e.vacancies_found || 0}</div><div className="text-[10px] text-muted-foreground">Vacancies</div></div>
+                <div><div className="text-sm font-semibold">{employerVacancies.length}</div><div className="text-[10px] text-muted-foreground">Vacancies</div></div>
                 <div><div className="text-sm font-semibold">{e.applications_submitted || 0}</div><div className="text-[10px] text-muted-foreground">Applied</div></div>
                 <div><div className="text-sm font-semibold">{e.interviews || 0}</div><div className="text-[10px] text-muted-foreground">Interviews</div></div>
                 <div><div className="text-sm font-semibold">{e.offers || 0}</div><div className="text-[10px] text-muted-foreground">Offers</div></div>
               </div>
+              {employerVacancies.length > 0 && (
+                <div className="mt-3 border-t border-border pt-3 space-y-1.5">
+                  <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Active vacancies</p>
+                  {employerVacancies.slice(0, 3).map(job => (
+                    <Link key={job.id} to={`/jobs/${job.id}`} className="block truncate text-sm font-medium text-blue-600 hover:underline">
+                      {job.job_title || "Untitled vacancy"}
+                    </Link>
+                  ))}
+                  {employerVacancies.length > 3 && (
+                    <Link to={`/jobs?employer=${encodeURIComponent(e.employer_name)}`} className="block text-xs text-muted-foreground hover:underline">
+                      View all {employerVacancies.length} vacancies
+                    </Link>
+                  )}
+                </div>
+              )}
               {e.careers_url && <a href={e.careers_url} target="_blank" rel="noreferrer" className="text-xs text-blue-600 hover:underline mt-2 block truncate">Careers page</a>}
               {e.last_checked && <p className="text-[11px] text-muted-foreground mt-1">Last checked: {ukDateTime(e.last_checked)}</p>}
             </div>
-          ))}
+          );})}
         </div>
       )}
       {showForm && <EmployerForm employer={editing} onClose={() => setShowForm(false)} onSaved={() => { setShowForm(false); refetch(); }} />}
       {showStarter && <StarterPackDialog existing={new Set(employers.map(e => e.employer_name))} selected={selected} setSelected={setSelected} onImport={importStarter} onClose={() => setShowStarter(false)} />}
     </div>
   );
+}
+
+function normaliseEmployerName(value = "") {
+  return value
+    .toLowerCase()
+    .replace(/&/g, "and")
+    .replace(/\b(the|uk|plc|limited|ltd|group|holdings?)\b/g, " ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
 }
 
 function EmployerForm({ employer, onClose, onSaved }) {
