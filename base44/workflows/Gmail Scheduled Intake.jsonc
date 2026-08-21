@@ -1,0 +1,47 @@
+{
+  "description": "Scheduled fallback that pulls new job-alert emails every 2 hours, in case the real-time Gmail webhook doesn't fire",
+  "definition": {
+    "document": {
+      "dsl": "1.0.0",
+      "name": "gmail_scheduled_intake",
+      "version": "1.0",
+      "namespace": "base44"
+    },
+    "do": [
+      {
+        "process_emails": {
+          "call": "invoke_backend_function",
+          "with": {
+            "function_name": "processGmailAlerts",
+            "args": {
+              "mode": "incremental"
+            }
+          },
+          "then": "end",
+          "x-base44": {
+            "title": "Pull new Gmail job alerts",
+            "description": "Incremental scan of last 7 days"
+          }
+        }
+      }
+    ]
+  },
+  "trigger": {
+    "condition": null,
+    "config": {
+      "trigger_type": "scheduled",
+      "events": [],
+      "schedule_mode": "recurring",
+      "cron_expression": "0 */2 * * *",
+      "one_time_date": null,
+      "timezone": "Europe/London",
+      "interval_value": null,
+      "interval_unit": null,
+      "interval_anchor": null,
+      "ends_type": "never",
+      "ends_on_date": null,
+      "ends_after_count": null
+    }
+  },
+  "name": "Gmail Scheduled Intake"
+}
