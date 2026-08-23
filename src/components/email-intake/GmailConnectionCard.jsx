@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { base44 } from "@/api/base44Client";
 import { SectionCard, Loading } from "@/components/ui-kit";
 import { useCollection } from "@/lib/entityHooks";
-import { listOwnedRecords } from "@/lib/ownedEntities";
+import { countOwnedRecords, listOwnedRecords } from "@/lib/ownedEntities";
 import { toast } from "react-hot-toast";
 import { Mail, Loader2, Plug, PlugZap, RefreshCw, Sparkles, AlertCircle, CheckCircle2, Clock, MailOpen, FileText, Copy, XCircle } from "lucide-react";
 
@@ -20,6 +20,7 @@ export default function GmailConnectionCard() {
   const { data: emailImports, refetch: refetchImports } = useCollection("EmailImport", () => listOwnedRecords("EmailImport", {}, "-created_date", 200));
   const { data: emailJobs, refetch: refetchJobs } = useCollection("Job", () => listOwnedRecords("Job", { discovered_from_email: true }, "-created_date", 500));
   const { data: intakeStates, refetch: refetchState } = useCollection("EmailIntakeState", () => listOwnedRecords("EmailIntakeState", {}, "-last_checked_at", 1));
+  const { data: exactEmailCount, refetch: refetchEmailCount } = useCollection("EmailImportCount", () => countOwnedRecords("EmailImport"));
 
   const fetchData = useCallback(async () => {
     try {
@@ -90,7 +91,7 @@ export default function GmailConnectionCard() {
     try {
       const res = await base44.functions.invoke("processGmailAlerts", { mode, maxJobs: 20 });
       setSummary(res.data?.summary);
-      await Promise.all([refetchImports(), refetchJobs(), refetchState()]);
+      await Promise.all([refetchImports(), refetchJobs(), refetchState(), refetchEmailCount()]);
       if (res.data?.summary) {
         const s = res.data.summary;
         toast.success(`Import complete: ${s.jobs_imported} jobs imported, ${s.duplicates_skipped} duplicates skipped`);
@@ -113,7 +114,7 @@ export default function GmailConnectionCard() {
     duplicatesSkipped: intakeState.total_duplicates_skipped || 0,
     failedEmails: intakeState.total_failed_emails || 0,
   } : {
-    emailsProcessed: emailImports?.length === 200 ? "200+" : emailImports?.length || 0,
+    emailsProcessed: Number.isFinite(exactEmailCount) ? exactEmailCount : emailImports?.length || 0,
     jobsExtracted: emailJobs?.length === 500 ? "500+" : emailJobs?.length || 0,
     duplicatesSkipped: emailImports?.reduce((sum, ei) => sum + (ei.duplicates_skipped || 0), 0) || 0,
     failedEmails: emailImports?.filter((ei) => ei.processing_status === "Failed").length || 0,

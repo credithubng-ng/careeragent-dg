@@ -31,6 +31,28 @@ export async function listOwnedRecords(entityName, query = {}, sort, limit) {
   );
 }
 
+/** Count every owned record without relying on a UI/API page-size ceiling. */
+export async function countOwnedRecords(entityName, query = {}) {
+  const ownerEmail = await getOwnerEmail();
+  const entity = ensureEntity(entityName);
+  const pageSize = 500;
+  let total = 0;
+  let skip = 0;
+
+  while (true) {
+    const page = await entity.filter(
+      { ...query, owner_email: ownerEmail },
+      "-created_date",
+      pageSize,
+      skip,
+      ["id"]
+    );
+    total += page.length;
+    if (page.length < pageSize) return total;
+    skip += page.length;
+  }
+}
+
 /**
  * Get a single record by id, scoped to the authenticated user.
  */

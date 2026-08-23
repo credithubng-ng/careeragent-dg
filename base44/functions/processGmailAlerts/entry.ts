@@ -417,7 +417,9 @@ export default async function(req: Request): Promise<Response> {
     const checkedAt = new Date().toISOString();
     // Seed the persistent counters from existing records on the first upgraded run,
     // so deploying this fix does not make Angel's historical totals appear to reset.
-    const historicalProcessed = intakeState ? intakeState.total_emails_processed || 0 : existingEmailImports.length;
+    const historicalProcessed = intakeState
+      ? intakeState.total_emails_processed || 0
+      : await countOwnedEntity(base44.asServiceRole.entities.EmailImport, ownerEmail);
     const historicalJobs = intakeState
       ? intakeState.total_jobs_imported || 0
       : existingJobs.filter((job: any) => job.discovered_from_email).length - jobsImported;
@@ -515,6 +517,18 @@ function looksLikeJobEmail(subject: string, bodyText: string): boolean {
   const roleSignal = /\b(job|vacanc(?:y|ies)|position|role|career|opportunit(?:y|ies)|contract|consult(?:ant|ing))\b/.test(text);
   const advertSignal = /\b(apply|salary|location|closing date|job description|requirements?|responsibilities|hiring)\b/.test(text);
   return roleSignal && advertSignal;
+}
+
+async function countOwnedEntity(entity: any, ownerEmail: string): Promise<number> {
+  const pageSize = 500;
+  let total = 0;
+  let skip = 0;
+  while (true) {
+    const page = await entity.filter({ owner_email: ownerEmail }, "-created_date", pageSize, skip, ["id"]);
+    total += page.length;
+    if (page.length < pageSize) return total;
+    skip += page.length;
+  }
 }
 
 async function getMessage(authHeader: any, messageId: string): Promise<any> {
