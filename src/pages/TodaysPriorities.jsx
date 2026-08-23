@@ -18,6 +18,7 @@ function priorityRank(p) {
 }
 
 const SUBMITTED_STAGES = ["Applied", "Recruiter Contact", "First Interview", "Further Interview", "Assessment", "Reference Check", "Offer"];
+const EMAIL_REVIEW_STATUSES = ["Needs Review", "URL Restricted", "Partial", "Failed"];
 
 function PriorityItem({ action, onComplete }) {
   const Icon = PRIORITY_ICON[action.priority] || Circle;
@@ -78,6 +79,27 @@ export default function TodaysPriorities() {
     const matchByJob = {};
     matches.forEach((m) => { if (!matchByJob[m.job_id]) matchByJob[m.job_id] = m; });
 
+    // New email vacancies awaiting Angel's decision. Surface urgent and relevant
+    // items in the daily workflow instead of leaving them hidden in a separate queue.
+    jobs.filter((j) => EMAIL_REVIEW_STATUSES.includes(j.email_import_status)).forEach((j) => {
+      const d = daysUntil(j.closing_date);
+      if (d != null && d < 0) return;
+      list.push({
+        id: `email-review-${j.id}`,
+        title: `Decide whether to keep: ${j.job_title}`,
+        priority: d != null && d <= 2 ? "Critical" : j.relevance_tier === "Relevant" ? "High" : "Medium",
+        due_date: j.closing_date,
+        job_id: j.id,
+        job_title: j.job_title,
+        employer: j.employer,
+        match_score: j.match_score,
+        related_type: "Email Review",
+        recommended_action: `${j.email_source || "Email"} · ${j.email_import_status}`,
+        action_label: "Decide",
+        action_link: "/email-review",
+      });
+    });
+
     // A. Applications with deadlines within 72 hours
     jobs.forEach((j) => {
       const d = daysUntil(j.closing_date);
@@ -101,7 +123,7 @@ export default function TodaysPriorities() {
     });
 
     // B. Strong-fit jobs not yet reviewed
-    jobs.filter((j) => j.match_score >= 70 && j.job_status === "New").forEach((j) => {
+    jobs.filter((j) => j.match_score >= 70 && j.job_status === "New" && !EMAIL_REVIEW_STATUSES.includes(j.email_import_status)).forEach((j) => {
       list.push({
         id: `strong-${j.id}`,
         title: `Review strong-match role: ${j.job_title}`,
@@ -220,7 +242,7 @@ export default function TodaysPriorities() {
 
     // H. Recently discovered jobs not yet analysed
     const recentJobs = jobs
-      .filter((j) => j.job_status === "New" && j.match_score == null && !["Skip", "Expired"].includes(j.job_status))
+      .filter((j) => j.job_status === "New" && j.match_score == null && !EMAIL_REVIEW_STATUSES.includes(j.email_import_status) && !["Skip", "Expired"].includes(j.job_status))
       .sort((a, b) => new Date(b.created_date || 0) - new Date(a.created_date || 0))
       .slice(0, 5);
     recentJobs.forEach((j) => {
@@ -332,6 +354,7 @@ export default function TodaysPriorities() {
                 { label: "Follow-ups due", count: actions.filter((a) => a.related_type === "Follow-Up").length, tone: "amber" },
                 { label: "Interviews to prep", count: actions.filter((a) => a.id.startsWith("ivprep-")).length, tone: "violet" },
                 { label: "Unanalysed jobs", count: actions.filter((a) => a.id.startsWith("analyse-")).length, tone: "slate" },
+                { label: "Email decisions", count: actions.filter((a) => a.id.startsWith("email-review-")).length, tone: "blue" },
               ].map((s) => (
                 <div key={s.label} className="flex items-center justify-between">
                   <span className="text-muted-foreground">{s.label}</span>
