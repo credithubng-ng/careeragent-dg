@@ -175,12 +175,14 @@ export default async function(req: Request): Promise<Response> {
             continue;
           }
 
-          // Relevance pre-filter. Angel has explicitly chosen LinkedIn as an
-          // allow-all discovery source: keep every extracted LinkedIn vacancy,
-          // while retaining its honest relevance label for later review.
+          // Relevance pre-filter. Angel has explicitly chosen LinkedIn and Indeed
+          // as allow-all discovery sources: keep every extracted vacancy from
+          // either source while retaining its honest relevance label for review.
           const tier = filterRelevance(vacancy, candidate);
-          const isLinkedInVacancy = sourceName.toLowerCase().includes("linkedin");
-          if (tier === "Unlikely Relevant" && !isLinkedInVacancy) {
+          const allowAllSource = ["linkedin", "indeed"].some((source) =>
+            sourceName.toLowerCase().includes(source)
+          );
+          if (tier === "Unlikely Relevant" && !allowAllSource) {
             emailRejected++;
             jobsRejected++;
             continue;
