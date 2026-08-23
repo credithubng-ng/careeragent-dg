@@ -25,6 +25,7 @@ import Analytics from './pages/Analytics';
 import JobSources from './pages/JobSources';
 import SettingsPage from './pages/Settings';
 import EmailImportReview from './pages/EmailImportReview';
+import ApplicationInbox from './pages/ApplicationInbox';
 import WeeklyReview from './pages/WeeklyReview';
 import OIOverview from './pages/opportunity-intelligence/Overview';
 import OISources from './pages/opportunity-intelligence/OpportunitySources';
@@ -76,6 +77,7 @@ const AuthenticatedApp = () => {
           <Route path="/jobs/:id/correct" element={<JobCorrect />} />
           <Route path="/jobs/:id/edit" element={<JobForm />} />
           <Route path="/applications" element={<Applications />} />
+          <Route path="/communications" element={<ApplicationInbox />} />
           <Route path="/studio" element={<ApplicationStudio />} />
           <Route path="/interviews" element={<Interviews />} />
           <Route path="/cv" element={<CVLibrary />} />

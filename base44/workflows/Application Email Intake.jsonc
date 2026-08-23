@@ -1,0 +1,6 @@
+{
+  "name": "Application Email Intake",
+  "description": "Checks Gmail every two hours for recruiter replies and application feedback",
+  "trigger": { "condition": null, "config": { "trigger_type": "scheduled", "events": [], "schedule_mode": "recurring", "cron_expression": "15 */2 * * *", "timezone": "Europe/London", "ends_type": "never" } },
+  "definition": { "document": { "dsl": "1.0.0", "name": "application_email_intake", "version": "1.0", "namespace": "base44" }, "do": [{ "process_application_emails": { "call": "invoke_backend_function", "with": { "function_name": "processApplicationEmails", "args": { "days": 21 } }, "then": "end", "x-base44": { "title": "Track application feedback", "description": "Find and classify recruiter replies" } } }] }
+}

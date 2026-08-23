@@ -1,0 +1,35 @@
+{
+  "name": "ApplicationCommunication",
+  "type": "object",
+  "properties": {
+    "owner_email": { "type": "string", "format": "email" },
+    "candidate_id": { "type": "string" },
+    "application_id": { "type": "string" },
+    "job_id": { "type": "string" },
+    "gmail_message_id": { "type": "string" },
+    "gmail_thread_id": { "type": "string" },
+    "sender": { "type": "string" },
+    "subject": { "type": "string" },
+    "received_date": { "type": "string" },
+    "communication_type": { "type": "string", "enum": ["Acknowledgement", "Recruiter Response", "Information Request", "Interview Invitation", "Interview Feedback", "Progression", "Rejection", "Offer", "Reference Check", "Onboarding", "Unclassified"] },
+    "outcome_tone": { "type": "string", "enum": ["Positive", "Action Required", "Neutral", "Negative", "Unclear"] },
+    "priority": { "type": "string", "enum": ["Critical", "High", "Normal", "Low"] },
+    "summary": { "type": "string" },
+    "body_excerpt": { "type": "string" },
+    "suggested_stage": { "type": "string" },
+    "confidence": { "type": "number" },
+    "match_reason": { "type": "string" },
+    "review_status": { "type": "string", "enum": ["Needs Review", "Confirmed", "Dismissed", "Handled"], "default": "Needs Review" },
+    "requires_action": { "type": "boolean", "default": false },
+    "action_description": { "type": "string" },
+    "action_due_date": { "type": "string" },
+    "processed_date": { "type": "string" }
+  },
+  "required": ["gmail_message_id"],
+  "rls": {
+    "create": { "data.owner_email": "{{user.email}}" },
+    "read": { "$or": [{ "data.owner_email": "{{user.email}}" }, { "user_condition": { "role": "admin" } }] },
+    "update": { "$or": [{ "data.owner_email": "{{user.email}}" }, { "user_condition": { "role": "admin" } }] },
+    "delete": { "data.owner_email": "{{user.email}}" }
+  }
+}

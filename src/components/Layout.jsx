@@ -5,7 +5,7 @@ import { base44 } from "@/api/base44Client";
 import {
   LayoutDashboard, ListTodo, Briefcase, Send, Wand2, CalendarDays,
   FileText, User, Users, BarChart3, TrendingUp, Database, Settings as SettingsIcon,
-  MailCheck, Menu, X, LogOut, Compass,
+  MailCheck, Menu, X, LogOut, Compass, Inbox,
 } from "lucide-react";
 
 const NAV = [
@@ -15,6 +15,7 @@ const NAV = [
   { label: "Opportunity Intelligence", to: "/opportunity-intelligence", icon: Compass },
   { label: "Email Import Review", to: "/email-review", icon: MailCheck },
   { label: "Applications", to: "/applications", icon: Send },
+  { label: "Application Inbox", to: "/communications", icon: Inbox },
   { label: "Application Studio", to: "/studio", icon: Wand2 },
   { label: "Interviews", to: "/interviews", icon: CalendarDays },
   { label: "CV Library", to: "/cv", icon: FileText },

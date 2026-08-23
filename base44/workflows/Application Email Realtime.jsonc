@@ -1,0 +1,6 @@
+{
+  "name": "Application Email Realtime",
+  "description": "Processes recruiter replies as Gmail reports new messages",
+  "trigger": { "config": { "trigger_type": "connector", "integration_type": "gmail", "events": ["mailbox"] }, "condition": "${ .trigger.data.has_new_messages == true }" },
+  "definition": { "document": { "dsl": "1.0.0", "name": "application_email_realtime", "version": "1.0", "namespace": "base44" }, "do": [{ "process_application_replies": { "call": "invoke_backend_function", "with": { "function_name": "processApplicationEmails", "args": { "message_ids": "${ .trigger.data.new_message_ids }" } }, "then": "end", "x-base44": { "title": "Classify recruiter reply", "description": "Link new Gmail messages to applications" } } }] }
+}
