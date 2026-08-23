@@ -1,0 +1,17 @@
+{
+  "name": "DashboardPreference",
+  "type": "object",
+  "properties": {
+    "owner_email": { "type": "string", "format": "email" },
+    "visible_sections": { "type": "array", "items": { "type": "string" } },
+    "section_order": { "type": "array", "items": { "type": "string" } },
+    "layout_mode": { "type": "string", "enum": ["Focused", "Expanded"], "default": "Focused" }
+  },
+  "required": ["owner_email"],
+  "rls": {
+    "create": { "data.owner_email": "{{user.email}}" },
+    "read": { "$or": [{ "data.owner_email": "{{user.email}}" }, { "user_condition": { "role": "admin" } }] },
+    "update": { "$or": [{ "data.owner_email": "{{user.email}}" }, { "user_condition": { "role": "admin" } }] },
+    "delete": { "data.owner_email": "{{user.email}}" }
+  }
+}

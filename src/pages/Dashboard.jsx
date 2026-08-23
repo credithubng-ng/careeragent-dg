@@ -1,337 +1,134 @@
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useCollection } from "@/lib/entityHooks";
 import { PageHeader, SectionCard, Loading, EmptyState, StatCard } from "@/components/ui-kit";
 import GitHubIssues from "@/components/GitHubIssues";
-import { ukDate, daysUntil } from "@/lib/format";
-import { listOwnedRecords } from "@/lib/ownedEntities";
+import { daysUntil, ukDate } from "@/lib/format";
+import { createOwnedRecord, listOwnedRecords, updateOwnedRecord } from "@/lib/ownedEntities";
 import { cn } from "@/lib/utils";
-import {
-  Briefcase, Send, CalendarClock, Trophy, Target, TrendingUp,
-  Flame, Users, Clock, CheckCircle2, AlertCircle,
-} from "lucide-react";
-import {
-  ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid,
-  PieChart, Pie, Cell, LineChart, Line, Legend,
-} from "recharts";
+import { toast } from "react-hot-toast";
+import { Briefcase, Send, CalendarClock, Flame, Target, TrendingUp, Clock, Settings2, Check, ChevronUp, ChevronDown, RotateCcw, MailCheck, ArrowRight, X } from "lucide-react";
+import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, LineChart, Line, Legend } from "recharts";
 
-const MATCH_BANDS = [
-  { name: "Excellent", color: "#10b981", min: 85 },
-  { name: "Strong", color: "#22c55e", min: 70 },
-  { name: "Possible", color: "#f59e0b", min: 55 },
-  { name: "Weak", color: "#f97316", min: 40 },
-  { name: "Do Not Apply", color: "#f43f5e", min: 0 },
+const REVIEW_STATUSES = ["Needs Review", "URL Restricted", "Partial", "Failed"];
+const DEFAULT_SECTIONS = ["actions", "key_metrics", "campaign_progress", "intake_health", "closing_soon", "interviews"];
+const SECTION_CATALOGUE = [
+  { id: "actions", label: "Today’s top actions", description: "The decisions and follow-ups that matter now", group: "Recommended" },
+  { id: "key_metrics", label: "Key outcomes", description: "Reviews, matches, applications and interviews", group: "Recommended" },
+  { id: "campaign_progress", label: "60-day progress", description: "Progress against weekly application targets", group: "Recommended" },
+  { id: "intake_health", label: "Gmail intake health", description: "Latest scan and jobs awaiting review", group: "Recommended" },
+  { id: "closing_soon", label: "Closing soon", description: "Active vacancies closing within seven days", group: "Recommended" },
+  { id: "interviews", label: "Upcoming interviews", description: "Interview dates and preparation status", group: "Recommended" },
+  { id: "match_bands", label: "Match-score distribution", description: "Detailed score-band chart", group: "Analytics" },
+  { id: "pipeline", label: "Application pipeline", description: "Applications by stage", group: "Analytics" },
+  { id: "weekly_trend", label: "Weekly activity trend", description: "Applications and interviews over time", group: "Analytics" },
+  { id: "project_issues", label: "Project issues", description: "GitHub development issues", group: "Administration" },
 ];
-const PIE_COLORS = ["#10b981", "#22c55e", "#f59e0b", "#f97316", "#f43f5e"];
 
-// Weekly targets for a 60-day campaign
-const WEEKLY_TARGETS = {
-  jobsReviewed: 25,
-  applications: 10,
-  recruiterContacts: 5,
-  interviewPrep: 2,
-};
-
-function weekStart() {
-  const d = new Date();
-  d.setHours(0, 0, 0, 0);
-  d.setDate(d.getDate() - d.getDay()); // Sunday as week start
-  return d;
-}
-
-function ProgressBar({ value, target, tone }) {
-  const pct = target > 0 ? Math.min(100, Math.round((value / target) * 100)) : 0;
-  const tones = {
-    green: "bg-emerald-500",
-    amber: "bg-amber-500",
-    red: "bg-rose-500",
-    blue: "bg-blue-500",
-  };
-  const labels = {
-    green: "On Track",
-    amber: "Needs Attention",
-    red: "Behind Target",
-    blue: "In Progress",
-  };
-  return (
-    <div>
-      <div className="flex items-center justify-between text-xs mb-1">
-        <span className="text-muted-foreground">{value} / {target}</span>
-        <span className={cn("font-medium", tone === "green" ? "text-emerald-600" : tone === "amber" ? "text-amber-600" : tone === "red" ? "text-rose-600" : "text-blue-600")}>{labels[tone]}</span>
-      </div>
-      <div className="h-2 w-full rounded-full bg-slate-100 overflow-hidden">
-        <div className={cn("h-full rounded-full", tones[tone])} style={{ width: `${pct}%` }} />
-      </div>
-    </div>
-  );
-}
-
-function progressTone(value, target) {
-  if (target <= 0) return "blue";
-  const pct = value / target;
-  if (pct >= 1) return "green";
-  if (pct >= 0.5) return "amber";
-  return "red";
-}
+function startOfWeek() { const d = new Date(); d.setHours(0, 0, 0, 0); d.setDate(d.getDate() - d.getDay()); return d; }
+function activeJob(job) { return !["Skip", "Rejected", "Withdrawn", "Expired"].includes(job.job_status); }
 
 export default function Dashboard() {
-  const { data: jobs, loading: jobsLoading } = useCollection("Job", () => listOwnedRecords("Job", {}, "-created_date", 300));
+  const { data: jobs, loading: jobsLoading } = useCollection("Job", () => listOwnedRecords("Job", {}, "-created_date", 500));
   const { data: applications, loading: appsLoading } = useCollection("Application", () => listOwnedRecords("Application", {}, "-created_date", 300));
   const { data: interviews } = useCollection("Interview", () => listOwnedRecords("Interview", {}, "-interview_date", 200));
   const { data: goals } = useCollection("CampaignGoal", () => listOwnedRecords("CampaignGoal", {}, "-created_date", 5));
-  const { data: contacts } = useCollection("Contact", () => listOwnedRecords("Contact", {}, "-created_date", 200));
+  const { data: intakeStates } = useCollection("EmailIntakeState", () => listOwnedRecords("EmailIntakeState", {}, "-last_checked_at", 1));
+  const { data: preferences, refetch: refetchPreferences } = useCollection("DashboardPreference", () => listOwnedRecords("DashboardPreference", {}, "-created_date", 1));
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
 
+  const preference = preferences[0];
+  const visible = preference?.visible_sections?.length ? preference.visible_sections : DEFAULT_SECTIONS;
+  const savedOrder = preference?.section_order?.length ? preference.section_order : SECTION_CATALOGUE.map((item) => item.id);
+  const order = [...savedOrder, ...SECTION_CATALOGUE.map((item) => item.id).filter((id) => !savedOrder.includes(id))];
   const goal = goals[0];
+  const intake = intakeStates[0];
 
   const stats = useMemo(() => {
-    const ws = weekStart();
-    const newJobs = jobs.filter((j) => j.job_status === "New").length;
-    const jobsReviewed = jobs.filter((j) => j.job_status !== "New").length;
-    const jobsReviewedThisWeek = jobs.filter((j) => j.job_status !== "New" && j.created_date && new Date(j.created_date) >= ws).length;
-    const strongFit = jobs.filter((j) => j.match_score != null && j.match_score >= 70).length;
+    const week = startOfWeek();
     const submittedStages = ["Applied", "Recruiter Contact", "First Interview", "Further Interview", "Assessment", "Reference Check", "Offer"];
-    const submitted = applications.filter((a) => submittedStages.includes(a.stage)).length;
-    const submittedThisWeek = applications.filter((a) => submittedStages.includes(a.stage) && a.date_applied && new Date(a.date_applied) >= ws).length;
-    const recruiterContacts = applications.filter((a) => ["Recruiter Contact", "First Interview", "Further Interview", "Assessment", "Reference Check", "Offer"].includes(a.stage)).length;
-    const recruiterContactsThisWeek = contacts.filter((c) => c.created_date && new Date(c.created_date) >= ws).length + applications.filter((a) => a.stage === "Recruiter Contact" && a.date_applied && new Date(a.date_applied) >= ws).length;
-    const interviewCount = interviews.length;
-    const offers = applications.filter((a) => a.stage === "Offer").length;
-    const scored = jobs.filter((j) => j.match_score != null);
-    const avgScore = scored.length ? Math.round(scored.reduce((s, j) => s + j.match_score, 0) / scored.length) : 0;
-    const appsToInterview = submitted ? Math.round((interviewCount / submitted) * 100) : 0;
-    const today = new Date().toISOString().slice(0, 10);
-    const followUpsDue = applications.filter((a) => a.follow_up_date && a.follow_up_date <= today && !["Offer", "Rejected", "Withdrawn"].includes(a.stage)).length;
-    const awaitingAction = applications.filter((a) => ["Preparing", "Ready to Apply"].includes(a.stage)).length;
-    const interviewPrepThisWeek = interviews.filter((iv) => iv.preparation_status && iv.preparation_status !== "Not Started" && iv.created_date && new Date(iv.created_date) >= ws).length;
-    const todayStr = new Date().toISOString().slice(0, 10);
-    const jobsImportedToday = jobs.filter((j) => j.created_date && j.created_date.slice(0, 10) === todayStr).length;
-    const highMatches = jobs.filter((j) => j.match_score != null && j.match_score >= 80).length;
-    const pendingReview = jobs.filter((j) => j.job_status === "New" || j.email_import_status === "Needs Review").length;
-    return {
-      newJobs, jobsReviewed, jobsReviewedThisWeek, strongFit, submitted, submittedThisWeek,
-      recruiterContacts, recruiterContactsThisWeek, interviewCount, offers, avgScore,
-      appsToInterview, followUpsDue, awaitingAction, interviewPrepThisWeek,
-      jobsImportedToday, highMatches, pendingReview,
-    };
-  }, [jobs, applications, interviews, contacts]);
+    const reviewed = jobs.filter((job) => job.job_status !== "New").length;
+    const reviewedWeek = jobs.filter((job) => job.job_status !== "New" && job.created_date && new Date(job.created_date) >= week).length;
+    const strong = jobs.filter((job) => job.match_score >= 70 && activeJob(job)).length;
+    const submitted = applications.filter((app) => submittedStages.includes(app.stage)).length;
+    const submittedWeek = applications.filter((app) => submittedStages.includes(app.stage) && app.date_applied && new Date(app.date_applied) >= week).length;
+    const waiting = jobs.filter((job) => REVIEW_STATUSES.includes(job.email_import_status) && activeJob(job)).length;
+    const followUps = applications.filter((app) => app.follow_up_date && daysUntil(app.follow_up_date) <= 0 && !["Offer", "Rejected", "Withdrawn"].includes(app.stage)).length;
+    return { reviewed, reviewedWeek, strong, submitted, submittedWeek, waiting, followUps, interviews: interviews.length };
+  }, [jobs, applications, interviews]);
 
-  const daysLeft = useMemo(() => goal?.target_end_date ? daysUntil(goal.target_end_date) : null, [goal]);
-  const campaignDays = useMemo(() => {
-    if (!goal?.start_date || !goal?.target_end_date) return 60;
-    const diff = daysUntil(goal.start_date);
-    return diff != null ? Math.max(1, 60 + (60 - (diff + 60))) : 60;
-  }, [goal]);
+  const closingSoon = useMemo(() => jobs.filter((job) => { const d = daysUntil(job.closing_date); return activeJob(job) && d != null && d >= 0 && d <= 7; }).sort((a, b) => daysUntil(a.closing_date) - daysUntil(b.closing_date)).slice(0, 6), [jobs]);
+  const upcomingInterviews = useMemo(() => interviews.filter((item) => { const d = daysUntil(item.interview_date); return d != null && d >= 0; }).sort((a, b) => daysUntil(a.interview_date) - daysUntil(b.interview_date)).slice(0, 5), [interviews]);
+  const actions = useMemo(() => {
+    const items = [];
+    if (stats.waiting) items.push({ label: `${stats.waiting} imported job${stats.waiting === 1 ? "" : "s"} need a decision`, hint: "Approve, archive or mark not interested", to: "/email-review", tone: "amber" });
+    if (closingSoon.length) items.push({ label: `${closingSoon.length} active job${closingSoon.length === 1 ? "" : "s"} close within seven days`, hint: "Review deadlines before starting new work", to: "/jobs?view=Closing%20Soon", tone: "rose" });
+    if (stats.followUps) items.push({ label: `${stats.followUps} application follow-up${stats.followUps === 1 ? "" : "s"} due`, hint: "Contact recruiters today", to: "/priorities", tone: "blue" });
+    const ready = applications.filter((app) => app.stage === "Ready to Apply").length;
+    if (ready) items.push({ label: `${ready} application${ready === 1 ? " is" : "s are"} ready to submit`, hint: "Submit and move to Applied", to: "/applications", tone: "green" });
+    return items.slice(0, 5);
+  }, [stats, closingSoon, applications]);
 
-  const bandData = useMemo(() => {
-    const bands = MATCH_BANDS.map((b) => ({ name: b.name, count: 0, color: b.color }));
-    jobs.forEach((j) => {
-      const s = j.match_score;
-      if (s == null) return;
-      for (const b of MATCH_BANDS) {
-        if (s >= b.min) { bands.find((x) => x.name === b.name).count++; break; }
-      }
-    });
-    return bands;
-  }, [jobs]);
+  const matchData = useMemo(() => [
+    { name: "80–100", count: jobs.filter((job) => job.match_score >= 80).length },
+    { name: "70–79", count: jobs.filter((job) => job.match_score >= 70 && job.match_score < 80).length },
+    { name: "50–69", count: jobs.filter((job) => job.match_score >= 50 && job.match_score < 70).length },
+    { name: "Below 50", count: jobs.filter((job) => job.match_score != null && job.match_score < 50).length },
+  ], [jobs]);
+  const pipelineData = useMemo(() => ["Preparing", "Ready to Apply", "Applied", "Recruiter Contact", "First Interview", "Offer"].map((stage) => ({ name: stage, count: applications.filter((app) => app.stage === stage).length })), [applications]);
+  const weeklyData = useMemo(() => Array.from({ length: 6 }, (_, index) => {
+    const offset = 5 - index; const start = new Date(); start.setDate(start.getDate() - offset * 7 - 6); const end = new Date(); end.setDate(end.getDate() - offset * 7);
+    return { name: `${start.getDate()}/${start.getMonth() + 1}`, Applications: applications.filter((app) => app.date_applied && new Date(app.date_applied) >= start && new Date(app.date_applied) <= end).length, Interviews: interviews.filter((item) => item.interview_date && new Date(item.interview_date) >= start && new Date(item.interview_date) <= end).length };
+  }), [applications, interviews]);
 
-  const stageData = useMemo(() => {
-    const stages = ["Identified", "Reviewing", "Preparing", "Ready to Apply", "Applied", "Recruiter Contact", "First Interview", "Further Interview", "Assessment", "Offer", "Rejected", "Withdrawn"];
-    return stages.map((s) => ({ name: s, count: applications.filter((a) => a.stage === s).length }));
-  }, [applications]);
-
-  const sourceData = useMemo(() => {
-    const map = {};
-    jobs.forEach((j) => { const s = j.job_source_name || "Unknown"; map[s] = (map[s] || 0) + 1; });
-    return Object.entries(map).map(([name, count]) => ({ name, count })).sort((a, b) => b.count - a.count).slice(0, 6);
-  }, [jobs]);
-
-  const sectorData = useMemo(() => {
-    const map = {};
-    jobs.forEach((j) => { const s = j.sector || "Unspecified"; map[s] = (map[s] || 0) + 1; });
-    return Object.entries(map).map(([name, count]) => ({ name, count }));
-  }, [jobs]);
-
-  const weeklyData = useMemo(() => {
-    const weeks = [];
-    const now = new Date();
-    for (let i = 5; i >= 0; i--) {
-      const start = new Date(now); start.setDate(start.getDate() - i * 7 - 6);
-      const end = new Date(now); end.setDate(end.getDate() - i * 7);
-      const apps = applications.filter((a) => a.date_applied && new Date(a.date_applied) >= start && new Date(a.date_applied) <= end).length;
-      const ints = interviews.filter((iv) => iv.interview_date && new Date(iv.interview_date) >= start && new Date(iv.interview_date) <= end).length;
-      weeks.push({ name: `${start.getDate()}/${start.getMonth() + 1}`, Applications: apps, Interviews: ints });
-    }
-    return weeks;
-  }, [applications, interviews]);
-
-  if (jobsLoading || appsLoading) return <Loading label="Loading dashboard…" />;
-
-  const hasActivity = jobs.length > 0 || applications.length > 0;
-
-  if (!hasActivity && !goal) {
-    return (
-      <div>
-        <PageHeader title="Dashboard" subtitle="Your 60-day Data Governance job-search campaign" />
-        <EmptyState
-          title="No campaign activity yet"
-          description="Import a job or add your profile to begin. The dashboard will populate as you review jobs, run match analysis and submit applications."
-          action={<Link to="/jobs/import" className="inline-flex items-center gap-2 rounded-lg bg-primary text-primary-foreground px-3 py-2 text-sm font-medium">Import a Job</Link>}
-        />
-      </div>
-    );
+  async function savePreferences(nextVisible, nextOrder) {
+    setSaving(true);
+    try {
+      const data = { visible_sections: nextVisible, section_order: nextOrder, layout_mode: "Focused" };
+      if (preference?.id) await updateOwnedRecord("DashboardPreference", preference.id, data);
+      else await createOwnedRecord("DashboardPreference", data);
+      await refetchPreferences();
+      toast.success("Dashboard preferences saved");
+    } catch { toast.error("Dashboard preferences could not be saved"); }
+    finally { setSaving(false); }
   }
 
-  return (
-    <div>
-      <PageHeader title="Dashboard" subtitle="Your 60-day Data Governance job-search campaign" />
+  if (jobsLoading || appsLoading) return <Loading label="Loading your dashboard…" />;
 
-      {/* 60-Day Scorecard */}
-      <SectionCard title="60-Day Job Search Scorecard" className="mb-6"
-        description={goal ? `${ukDate(goal.start_date)} – ${ukDate(goal.target_end_date)}` : "Set your campaign dates in Settings"}
-        actions={
-          daysLeft != null ? (
-            <div className="text-right">
-              <p className={cn("text-3xl font-bold", daysLeft <= 7 ? "text-rose-600" : daysLeft <= 14 ? "text-amber-600" : "text-foreground")}>{daysLeft}</p>
-              <p className="text-xs text-muted-foreground">days remaining</p>
-            </div>
-          ) : <Link to="/settings" className="text-sm font-medium text-primary hover:underline">Set up campaign</Link>
-        }
-      >
-        {goal ? (
-          <div className="space-y-5">
-            {/* Key metrics grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-              <StatCard label="Jobs Reviewed" value={stats.jobsReviewed} hint={`${stats.jobsReviewedThisWeek} this week`} icon={Briefcase} accent="blue" />
-              <StatCard label="Strong-Fit Jobs" value={stats.strongFit} hint="Match score ≥ 70" icon={Flame} accent="green" />
-              <StatCard label="Applications Submitted" value={stats.submitted} hint={`${stats.submittedThisWeek} this week`} icon={Send} accent="primary" />
-              <StatCard label="Recruiter Contacts" value={stats.recruiterContacts} hint={`${stats.recruiterContactsThisWeek} this week`} icon={Users} accent="violet" />
-              <StatCard label="Interviews Secured" value={stats.interviewCount} icon={CalendarClock} accent="violet" />
-              <StatCard label="Follow-Ups Due" value={stats.followUpsDue} icon={Clock} accent={stats.followUpsDue > 0 ? "amber" : "green"} />
-              <StatCard label="Awaiting Action" value={stats.awaitingAction} hint="Preparing / Ready" icon={Target} accent="amber" />
-              <StatCard label="Avg Match Score" value={stats.avgScore || "—"} icon={TrendingUp} accent="green" />
-              <StatCard label="App→Interview Rate" value={`${stats.appsToInterview}%`} icon={TrendingUp} accent="blue" />
-              <StatCard label="Offers" value={stats.offers} icon={Trophy} accent="green" />
-            </div>
+  const sections = {
+    actions: <ActionsSection actions={actions} />,
+    key_metrics: <KeyMetrics stats={stats} />,
+    campaign_progress: <CampaignProgress goal={goal} stats={stats} />,
+    intake_health: <IntakeHealth intake={intake} awaiting={stats.waiting} />,
+    closing_soon: <ClosingSoon jobs={closingSoon} />,
+    interviews: <UpcomingInterviews interviews={upcomingInterviews} />,
+    match_bands: <ChartSection title="Match-score distribution" data={matchData} />,
+    pipeline: <ChartSection title="Application pipeline" data={pipelineData} horizontal />,
+    weekly_trend: <WeeklyTrend data={weeklyData} />,
+    project_issues: <GitHubIssues />,
+  };
 
-            {/* Weekly targets */}
-            <div>
-              <p className="text-sm font-medium text-foreground mb-3">Progress toward weekly targets</p>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="rounded-lg border border-border bg-muted/30 p-3">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium text-foreground">Jobs reviewed this week</span>
-                    <Briefcase className="h-4 w-4 text-muted-foreground" />
-                  </div>
-                  <ProgressBar value={stats.jobsReviewedThisWeek} target={WEEKLY_TARGETS.jobsReviewed} tone={progressTone(stats.jobsReviewedThisWeek, WEEKLY_TARGETS.jobsReviewed)} />
-                </div>
-                <div className="rounded-lg border border-border bg-muted/30 p-3">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium text-foreground">Applications submitted this week</span>
-                    <Send className="h-4 w-4 text-muted-foreground" />
-                  </div>
-                  <ProgressBar value={stats.submittedThisWeek} target={WEEKLY_TARGETS.applications} tone={progressTone(stats.submittedThisWeek, WEEKLY_TARGETS.applications)} />
-                </div>
-                <div className="rounded-lg border border-border bg-muted/30 p-3">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium text-foreground">Recruiter contacts this week</span>
-                    <Users className="h-4 w-4 text-muted-foreground" />
-                  </div>
-                  <ProgressBar value={stats.recruiterContactsThisWeek} target={WEEKLY_TARGETS.recruiterContacts} tone={progressTone(stats.recruiterContactsThisWeek, WEEKLY_TARGETS.recruiterContacts)} />
-                </div>
-                <div className="rounded-lg border border-border bg-muted/30 p-3">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium text-foreground">Interview prep sessions this week</span>
-                    <CheckCircle2 className="h-4 w-4 text-muted-foreground" />
-                  </div>
-                  <ProgressBar value={stats.interviewPrepThisWeek} target={WEEKLY_TARGETS.interviewPrep} tone={progressTone(stats.interviewPrepThisWeek, WEEKLY_TARGETS.interviewPrep)} />
-                </div>
-              </div>
-              {stats.followUpsDue > 0 && (
-                <div className="mt-3 flex items-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-800">
-                  <AlertCircle className="h-4 w-4 shrink-0" />
-                  <span>{stats.followUpsDue} follow-up{stats.followUpsDue === 1 ? "" : "s"} due — complete them before starting new applications.</span>
-                </div>
-              )}
-            </div>
-          </div>
-        ) : (
-          <EmptyState title="No campaign set" description="Set your campaign start date, targets and end date in Settings to activate the scorecard." action={<Link to="/settings" className="inline-flex items-center gap-2 rounded-lg bg-primary text-primary-foreground px-3 py-2 text-sm font-medium">Set up campaign</Link>} />
-        )}
-      </SectionCard>
+  return <div>
+    <PageHeader title="Dashboard" subtitle="A focused view of the outcomes and actions you selected" actions={<button onClick={() => setEditing(true)} className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm font-medium hover:bg-muted"><Settings2 className="h-4 w-4" />Edit Dashboard</button>} />
+    {visible.length === 0 ? <EmptyState title="Your dashboard is empty" description="Choose the information you want to see." action={<button onClick={() => setEditing(true)} className="rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground">Choose sections</button>} /> : <div className="space-y-6">{order.filter((id) => visible.includes(id)).map((id) => <React.Fragment key={id}>{sections[id]}</React.Fragment>)}</div>}
+    {editing && <DashboardEditor visible={visible} order={order} saving={saving} onClose={() => setEditing(false)} onSave={async (nextVisible, nextOrder) => { await savePreferences(nextVisible, nextOrder); setEditing(false); }} />}
+  </div>;
+}
 
-      {/* Quick stat cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <Link to="/jobs?view=All"><StatCard label="Imported Today" value={stats.jobsImportedToday} icon={Briefcase} accent="blue" className="h-full hover:shadow-md" /></Link>
-        <Link to="/jobs?minScore=80"><StatCard label="High Matches" value={stats.highMatches} hint="Score ≥ 80" icon={Flame} accent="green" className="h-full hover:shadow-md" /></Link>
-        <Link to="/jobs?status=New"><StatCard label="Pending Review" value={stats.pendingReview} icon={Target} accent="amber" className="h-full hover:shadow-md" /></Link>
-        <Link to="/jobs?view=All"><StatCard label="Avg Match Score" value={stats.avgScore || "—"} icon={TrendingUp} accent="primary" className="h-full hover:shadow-md" /></Link>
-      </div>
+function ActionsSection({ actions }) { return <SectionCard title="Today’s top actions" description="Complete these before browsing more jobs" actions={<Link to="/priorities" className="text-sm font-medium text-primary">View all priorities</Link>}>{actions.length ? <div className="grid gap-3 md:grid-cols-2">{actions.map((item) => <Link key={item.label} to={item.to} className="flex items-center gap-3 rounded-lg border border-border p-4 hover:bg-muted/30"><span className={cn("h-9 w-1 rounded-full", item.tone === "rose" ? "bg-rose-500" : item.tone === "amber" ? "bg-amber-500" : item.tone === "green" ? "bg-emerald-500" : "bg-blue-500")} /><span className="flex-1"><span className="block text-sm font-semibold">{item.label}</span><span className="text-xs text-muted-foreground">{item.hint}</span></span><ArrowRight className="h-4 w-4 text-muted-foreground" /></Link>)}</div> : <p className="py-5 text-center text-sm text-muted-foreground">Nothing urgent. Angel is up to date.</p>}</SectionCard>; }
+function KeyMetrics({ stats }) { return <div className="grid grid-cols-2 gap-3 lg:grid-cols-4"><Link to="/email-review"><StatCard label="Awaiting Decisions" value={stats.waiting} icon={Target} accent="amber" className="h-full hover:shadow-md" /></Link><Link to="/jobs?view=Best%20Matches"><StatCard label="Strong Matches" value={stats.strong} icon={Flame} accent="green" className="h-full hover:shadow-md" /></Link><Link to="/applications"><StatCard label="Applications" value={stats.submitted} hint={`${stats.submittedWeek} this week`} icon={Send} accent="blue" className="h-full hover:shadow-md" /></Link><Link to="/interviews"><StatCard label="Interviews" value={stats.interviews} icon={CalendarClock} accent="violet" className="h-full hover:shadow-md" /></Link></div>; }
+function CampaignProgress({ goal, stats }) { const days = goal?.target_end_date ? daysUntil(goal.target_end_date) : null; const applicationTarget = goal?.target_applications || 15; const pct = Math.min(100, Math.round(stats.submitted / applicationTarget * 100)); return <SectionCard title="60-day progress" description={goal ? `${ukDate(goal.start_date)} – ${ukDate(goal.target_end_date)}` : "Set campaign dates in Settings"} actions={days != null && <div className="text-right"><p className="text-2xl font-bold">{Math.max(0, days)}</p><p className="text-xs text-muted-foreground">days left</p></div>}><div className="grid gap-5 md:grid-cols-2"><div><div className="mb-2 flex justify-between text-sm"><span>Applications submitted</span><strong>{stats.submitted} / {applicationTarget}</strong></div><div className="h-3 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-primary" style={{ width: `${pct}%` }} /></div></div><div className="grid grid-cols-2 gap-3"><div className="rounded-lg bg-muted/40 p-3"><p className="text-xs text-muted-foreground">Jobs reviewed</p><p className="text-xl font-semibold">{stats.reviewed}</p></div><div className="rounded-lg bg-muted/40 p-3"><p className="text-xs text-muted-foreground">This week</p><p className="text-xl font-semibold">{stats.reviewedWeek}</p></div></div></div></SectionCard>; }
+function IntakeHealth({ intake, awaiting }) { return <SectionCard title="Gmail intake health" description="A concise operational check" actions={<Link to="/settings" className="text-sm font-medium text-primary">Manage Gmail</Link>}><div className="grid gap-3 sm:grid-cols-3"><MiniMetric icon={MailCheck} label="Last successful check" value={intake?.last_checked_at ? new Date(intake.last_checked_at).toLocaleString("en-GB") : "No recorded scan"} /><MiniMetric icon={Briefcase} label="Emails processed" value={intake?.total_emails_processed ?? "—"} /><MiniMetric icon={Clock} label="Awaiting review" value={awaiting} /></div></SectionCard>; }
+function MiniMetric({ icon: Icon, label, value }) { return <div className="rounded-lg border border-border p-3"><div className="flex items-center gap-2 text-xs text-muted-foreground"><Icon className="h-4 w-4" />{label}</div><p className="mt-2 text-lg font-semibold">{value}</p></div>; }
+function ClosingSoon({ jobs }) { return <SectionCard title="Closing soon" description="Active opportunities closing within seven days" actions={<Link to="/jobs?view=Closing%20Soon" className="text-sm font-medium text-primary">View all</Link>}>{jobs.length ? <div className="divide-y divide-border">{jobs.map((job) => <Link key={job.id} to={`/jobs/${job.id}`} className="flex items-center gap-3 py-3 first:pt-0 last:pb-0"><span className="flex-1 min-w-0"><span className="block truncate text-sm font-medium">{job.job_title}</span><span className="text-xs text-muted-foreground">{job.employer}</span></span><span className={cn("text-xs font-medium", daysUntil(job.closing_date) <= 2 ? "text-rose-600" : "text-amber-600")}>{daysUntil(job.closing_date) === 0 ? "Today" : `${daysUntil(job.closing_date)} days`}</span></Link>)}</div> : <p className="py-5 text-center text-sm text-muted-foreground">No active deadlines within seven days.</p>}</SectionCard>; }
+function UpcomingInterviews({ interviews }) { return <SectionCard title="Upcoming interviews" actions={<Link to="/interviews" className="text-sm font-medium text-primary">Interview workspace</Link>}>{interviews.length ? <div className="divide-y divide-border">{interviews.map((item) => <div key={item.id} className="flex items-center gap-3 py-3 first:pt-0 last:pb-0"><CalendarClock className="h-5 w-5 text-violet-600" /><span className="flex-1"><span className="block text-sm font-medium">{item.job_title || "Interview"}</span><span className="text-xs text-muted-foreground">{item.employer} · {ukDate(item.interview_date)}</span></span><span className="text-xs text-muted-foreground">{item.preparation_status || "Not started"}</span></div>)}</div> : <p className="py-5 text-center text-sm text-muted-foreground">No upcoming interviews.</p>}</SectionCard>; }
+function ChartSection({ title, data, horizontal }) { return <SectionCard title={title}><ResponsiveContainer width="100%" height={260}><BarChart data={data} layout={horizontal ? "vertical" : "horizontal"}><CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" /><XAxis type={horizontal ? "number" : "category"} dataKey={horizontal ? undefined : "name"} tick={{ fontSize: 11 }} /><YAxis type={horizontal ? "category" : "number"} dataKey={horizontal ? "name" : undefined} width={horizontal ? 110 : undefined} allowDecimals={false} tick={{ fontSize: 10 }} /><Tooltip /><Bar dataKey="count" fill="#6366f1" radius={horizontal ? [0, 4, 4, 0] : [4, 4, 0, 0]} /></BarChart></ResponsiveContainer></SectionCard>; }
+function WeeklyTrend({ data }) { return <SectionCard title="Weekly activity trend"><ResponsiveContainer width="100%" height={260}><LineChart data={data}><CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" /><XAxis dataKey="name" /><YAxis allowDecimals={false} /><Tooltip /><Legend /><Line dataKey="Applications" stroke="#6366f1" strokeWidth={2} /><Line dataKey="Interviews" stroke="#10b981" strokeWidth={2} /></LineChart></ResponsiveContainer></SectionCard>; }
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        <SectionCard title="Jobs by Match Band">
-          <ResponsiveContainer width="100%" height={260}>
-            <BarChart data={bandData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-              <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-              <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
-              <Tooltip />
-              <Bar dataKey="count" radius={[4, 4, 0, 0]}>
-                {bandData.map((entry, idx) => <Cell key={idx} fill={entry.color} />)}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
-        </SectionCard>
-        <SectionCard title="Applications by Stage">
-          <ResponsiveContainer width="100%" height={260}>
-            <BarChart data={stageData} layout="vertical">
-              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-              <XAxis type="number" allowDecimals={false} tick={{ fontSize: 11 }} />
-              <YAxis type="category" dataKey="name" width={110} tick={{ fontSize: 10 }} />
-              <Tooltip />
-              <Bar dataKey="count" fill="#6366f1" radius={[0, 4, 4, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </SectionCard>
-        <SectionCard title="Jobs by Source">
-          <ResponsiveContainer width="100%" height={260}>
-            <BarChart data={sourceData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-              <XAxis dataKey="name" tick={{ fontSize: 10 }} angle={-20} textAnchor="end" height={60} />
-              <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
-              <Tooltip />
-              <Bar dataKey="count" fill="#0ea5e9" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </SectionCard>
-        <SectionCard title="Jobs by Sector">
-          <ResponsiveContainer width="100%" height={260}>
-            <PieChart>
-              <Pie data={sectorData} dataKey="count" nameKey="name" cx="50%" cy="50%" outerRadius={90} label={({ name }) => name}>
-                {sectorData.map((_, idx) => <Cell key={idx} fill={PIE_COLORS[idx % PIE_COLORS.length]} />)}
-              </Pie>
-              <Tooltip />
-            </PieChart>
-          </ResponsiveContainer>
-        </SectionCard>
-      </div>
-
-      <div className="mb-6">
-        <GitHubIssues />
-      </div>
-
-      <SectionCard title="Applications & Interviews by Week">
-        <ResponsiveContainer width="100%" height={260}>
-          <LineChart data={weeklyData}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-            <XAxis dataKey="name" tick={{ fontSize: 11 }} />
-            <YAxis allowDecimals={false} tick={{ fontSize: 11 }} />
-            <Tooltip />
-            <Legend />
-            <Line type="monotone" dataKey="Applications" stroke="#6366f1" strokeWidth={2} />
-            <Line type="monotone" dataKey="Interviews" stroke="#10b981" strokeWidth={2} />
-          </LineChart>
-        </ResponsiveContainer>
-      </SectionCard>
-    </div>
-  );
+function DashboardEditor({ visible, order, saving, onClose, onSave }) {
+  const [selected, setSelected] = useState(visible);
+  const [sequence, setSequence] = useState(order);
+  function move(id, direction) { const index = sequence.indexOf(id); const next = index + direction; if (next < 0 || next >= sequence.length) return; const copy = [...sequence]; [copy[index], copy[next]] = [copy[next], copy[index]]; setSequence(copy); }
+  return <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4"><div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-card shadow-2xl"><div className="sticky top-0 flex items-start justify-between border-b border-border bg-card p-5"><div><h2 className="text-lg font-semibold">Edit Dashboard</h2><p className="text-sm text-muted-foreground">Show only what helps Angel take action. Use arrows to change the order.</p></div><button onClick={onClose} aria-label="Close"><X className="h-5 w-5" /></button></div><div className="p-5"><div className="space-y-2">{sequence.map((id, index) => { const item = SECTION_CATALOGUE.find((entry) => entry.id === id); if (!item) return null; const checked = selected.includes(id); return <div key={id} className={cn("flex items-center gap-3 rounded-xl border p-3", checked ? "border-primary/40 bg-primary/5" : "border-border")}><button onClick={() => setSelected(checked ? selected.filter((value) => value !== id) : [...selected, id])} className={cn("flex h-5 w-5 items-center justify-center rounded border", checked ? "border-primary bg-primary text-primary-foreground" : "border-input")}>{checked && <Check className="h-3 w-3" />}</button><div className="flex-1"><p className="text-sm font-medium">{item.label}</p><p className="text-xs text-muted-foreground">{item.description} · {item.group}</p></div><div className="flex"><button disabled={index === 0} onClick={() => move(id, -1)} className="p-1 text-muted-foreground disabled:opacity-30" aria-label={`Move ${item.label} up`}><ChevronUp className="h-4 w-4" /></button><button disabled={index === sequence.length - 1} onClick={() => move(id, 1)} className="p-1 text-muted-foreground disabled:opacity-30" aria-label={`Move ${item.label} down`}><ChevronDown className="h-4 w-4" /></button></div></div>; })}</div></div><div className="sticky bottom-0 flex flex-wrap items-center justify-between gap-3 border-t border-border bg-card p-5"><button onClick={() => { setSelected(DEFAULT_SECTIONS); setSequence(SECTION_CATALOGUE.map((item) => item.id)); }} className="inline-flex items-center gap-2 text-sm text-muted-foreground"><RotateCcw className="h-4 w-4" />Reset recommended</button><div className="flex gap-2"><button onClick={onClose} className="rounded-lg border border-border px-4 py-2 text-sm font-medium">Cancel</button><button disabled={saving} onClick={() => onSave(selected, sequence)} className="rounded-lg bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50">{saving ? "Saving…" : "Save Dashboard"}</button></div></div></div></div>;
 }
