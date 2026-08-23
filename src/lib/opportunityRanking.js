@@ -1,5 +1,5 @@
 import { daysUntil } from "./format";
-import { classifyJob } from "./careerAI";
+import { classifyJob } from "./jobClassification";
 
 export const OPPORTUNITY_LEVELS = {
   A: { code: "A", label: "Priority A — Apply Immediately", tone: "green", rank: 0 },

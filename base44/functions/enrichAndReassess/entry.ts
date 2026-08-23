@@ -1,4 +1,4 @@
-import { createClientFromRequest } from 'npm:@base44/sdk@0.8.40';
+import { createClientFromRequest } from 'npm:@base44/sdk@0.8.41';
 import { fetchJobPageContent } from "../../shared/jobPageFetcher.ts";
 import { extractJobFromText, assessContentQuality, computeContentHash } from "../../shared/jobExtraction.ts";
 import { runJobMatch } from "../../shared/jobMatching.ts";
@@ -7,7 +7,8 @@ export default async function(req: Request): Promise<Response> {
   try {
     const base44 = createClientFromRequest(req);
     const user = await base44.auth.me();
-    if (!user) return Response.json({ error: 'Unauthorized' }, { status: 401 });
+    const ownerEmail = typeof user?.email === "string" ? user.email.trim().toLowerCase() : "";
+    if (!ownerEmail) return Response.json({ error: 'Unauthorized' }, { status: 401 });
 
     const body = await req.json().catch(() => ({}));
     const jobId = body.job_id;
@@ -15,35 +16,45 @@ export default async function(req: Request): Promise<Response> {
     const maxJobs = Number(body.max_jobs) || 10;
 
     // Get candidate (owned by this user only)
-    const candidates = await base44.asServiceRole.entities.Candidate.list();
-    const candidate = candidates.find((c: any) => c.owner_email === user.email);
+    const candidates = await base44.asServiceRole.entities.Candidate.filter(
+      { owner_email: ownerEmail },
+      "-created_date",
+      1
+    );
+    const candidate = candidates[0];
     if (!candidate) {
       return Response.json({ error: "No candidate profile found." }, { status: 400 });
     }
 
     // Get CVs (owned by this user only)
-    const allCVs = await base44.asServiceRole.entities.CV.list();
+    const allCVs = await base44.asServiceRole.entities.CV.filter({ owner_email: ownerEmail });
     const usableCVs = allCVs.filter((cv: any) =>
-      cv.owner_email === user.email &&
-      cv.processing_status === "Ready" &&
-      cv.extracted_cv_text?.trim()
+      cv.processing_status === "Ready" && cv.extracted_cv_text?.trim()
     );
 
     // Get scoring settings (owned by this user only)
-    const scoringSettings = await base44.asServiceRole.entities.ScoringSetting.list();
-    const scoring = scoringSettings.find((s: any) => s.owner_email === user.email && s.active) || scoringSettings[0];
+    const scoringSettings = await base44.asServiceRole.entities.ScoringSetting.filter(
+      { owner_email: ownerEmail, active: true },
+      "-created_date",
+      1
+    );
+    // runJobMatch uses its documented defaults when no owned active setting exists.
+    const scoring = scoringSettings[0] || null;
 
     // Get jobs to process
     let jobs: any[] = [];
     if (jobId) {
       const job = await base44.asServiceRole.entities.Job.get(jobId);
-      if (job.owner_email !== user.email) {
+      if (String(job?.owner_email || "").trim().toLowerCase() !== ownerEmail) {
         return Response.json({ error: "Not authorized" }, { status: 403 });
       }
       jobs = [job];
     } else {
-      const allJobs = await base44.asServiceRole.entities.Job.list("-created_date", 500);
-      jobs = allJobs.filter((j: any) => j.owner_email === user.email);
+      jobs = await base44.asServiceRole.entities.Job.filter(
+        { owner_email: ownerEmail },
+        "-created_date",
+        500
+      );
 
       if (filter === "incomplete") {
         jobs = jobs.filter((j: any) =>
@@ -54,9 +65,9 @@ export default async function(req: Request): Promise<Response> {
       } else if (filter === "partial") {
         jobs = jobs.filter((j: any) => j.job_content_status === "Partial");
       } else if (filter === "low_coverage") {
-        const matches = await base44.asServiceRole.entities.JobMatch.list();
+        const matches = await base44.asServiceRole.entities.JobMatch.filter({ owner_email: ownerEmail });
         const lowCoverageJobIds = new Set(
-          matches.filter((m: any) => m.owner_email === user.email && (m.assessment_coverage || 0) < 75).map((m: any) => m.job_id)
+          matches.filter((m: any) => (m.assessment_coverage || 0) < 75).map((m: any) => m.job_id)
         );
         jobs = jobs.filter((j: any) => lowCoverageJobIds.has(j.id));
       }
@@ -149,14 +160,16 @@ export default async function(req: Request): Promise<Response> {
             );
 
             // Delete old JobMatch records (avoid duplicates)
-            const oldMatches = await base44.asServiceRole.entities.JobMatch.list();
-            const userOldMatches = oldMatches.filter((m: any) => m.owner_email === user.email && m.job_id === job.id);
+            const userOldMatches = await base44.asServiceRole.entities.JobMatch.filter({
+              owner_email: ownerEmail,
+              job_id: job.id,
+            });
             for (const oldMatch of userOldMatches) {
               await base44.asServiceRole.entities.JobMatch.delete(oldMatch.id);
             }
 
             await base44.asServiceRole.entities.JobMatch.create({
-              owner_email: user.email,
+              owner_email: ownerEmail,
               candidate_id: candidate.id,
               job_id: job.id,
               ...matchResult,

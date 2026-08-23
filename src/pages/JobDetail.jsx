@@ -78,7 +78,14 @@ function ScoreBreakdown({ breakdown, categoryAnalysis }) {
       <div className="divide-y divide-border rounded-lg border border-border">
         {rows.map((row) => {
           const statusInfo = STATUS_LABELS[row.status] || STATUS_LABELS["Not assessed"];
-          const showScore = ["Verified", "Partially Verified", "Gap"].includes(row.status);
+          const showScore = [
+            "Strong Match",
+            "Partial Match",
+            "No Match",
+            "Verified",
+            "Partially Verified",
+            "Gap",
+          ].includes(row.status);
           return (
             <div key={row.key} className="px-3 py-2.5 text-sm">
               <div className="flex items-center justify-between gap-3">
@@ -270,15 +277,7 @@ export default function JobDetail() {
         ...(masterCv ? { cv_id: masterCv.id, cv_name: masterCv.cv_name } : {}),
       };
 
-      if (application) {
-        await base44.entities.Application.update(application.id, applicationData);
-      } else {
-        await createOwnedRecord("Application", {
-          ...applicationData,
-          application_document_ids: [],
-        });
-      }
-      await base44.entities.Job.update(id, { job_status: "Applied" });
+      await base44.functions.invoke("updateApplicationWorkflow", applicationData);
       setJob((current) => ({ ...current, job_status: "Applied" }));
       toast.success(application ? "Application moved to Applied." : "Application recorded in the Applied Kanban.", { id: notice });
       navigate("/applications");

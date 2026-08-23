@@ -8,7 +8,7 @@
     "build": "vite build",
     "lint": "eslint . --quiet",
     "lint:fix": "eslint . --fix",
-    "test": "node --test src/lib/aiResponse.test.js src/lib/profileReliability.test.js src/lib/jobTextRecovery.test.js",
+    "test": "node --test src/lib/aiResponse.test.js src/lib/profileReliability.test.js src/lib/jobTextRecovery.test.js && node --loader ./scripts/typescript-loader.mjs ./scripts/run-regression-tests.mjs",
     "typecheck": "tsc -p ./jsconfig.json",
     "preview": "vite preview"
   },

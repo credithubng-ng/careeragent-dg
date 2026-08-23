@@ -6,25 +6,8 @@ import { ukDate } from "@/lib/format";
 import { DragDropContext, Droppable, Draggable } from "@hello-pangea/dnd";
 import { Plus, X } from "lucide-react";
 import { toast } from "react-hot-toast";
-import { createOwnedRecord } from "@/lib/ownedEntities";
 
 const STAGES = ["Identified", "Reviewing", "Preparing", "Ready to Apply", "Applied", "Recruiter Contact", "First Interview", "Further Interview", "Assessment", "Reference Check", "Offer", "Rejected", "Withdrawn"];
-
-const JOB_STATUS_BY_APPLICATION_STAGE = {
-  Identified: "Identified",
-  Reviewing: "Reviewing",
-  Preparing: "Preparing Application",
-  "Ready to Apply": "Apply",
-  Applied: "Applied",
-  "Recruiter Contact": "Applied",
-  "First Interview": "Interview",
-  "Further Interview": "Interview",
-  Assessment: "Interview",
-  "Reference Check": "Interview",
-  Offer: "Offer",
-  Rejected: "Rejected",
-  Withdrawn: "Withdrawn",
-};
 
 async function listOwnedRecords(entityName, query = {}, sort, limit) {
   const user = await base44.auth.me();
@@ -76,14 +59,12 @@ export default function Applications() {
       if (destinationStage === "Applied" && !app.date_applied) {
         applicationUpdate.date_applied = new Date().toISOString().slice(0, 10);
       }
-      await base44.entities.Application.update(app.id, applicationUpdate);
-      try {
-        await base44.entities.Job.update(app.job_id, {
-          job_status: JOB_STATUS_BY_APPLICATION_STAGE[destinationStage] || destinationStage,
-        });
-      } catch {
-        toast.error("The Application moved, but the matching Job status could not be updated.");
-      }
+      await base44.functions.invoke("updateApplicationWorkflow", {
+        job_id: app.job_id,
+        candidate_id: app.candidate_id,
+        stage: destinationStage,
+        ...applicationUpdate,
+      });
       refetch();
     } catch { toast.error("Failed to move application"); }
   }
@@ -108,19 +89,12 @@ export default function Applications() {
         toast.error("An application already exists for this job.");
         return;
       }
-      await createOwnedRecord("Application", {
+      await base44.functions.invoke("updateApplicationWorkflow", {
         candidate_id: candidate.id,
         job_id: job.id,
-        job_title: job.job_title,
-        employer: job.employer,
-        contact_person: job.contact_person || "",
         ...(masterCv ? { cv_id: masterCv.id, cv_name: masterCv.cv_name } : {}),
         stage: newApp.stage,
         ...(newApp.stage === "Applied" ? { date_applied: new Date().toISOString().slice(0, 10) } : {}),
-        application_document_ids: [],
-      });
-      await base44.entities.Job.update(job.id, {
-        job_status: JOB_STATUS_BY_APPLICATION_STAGE[newApp.stage] || newApp.stage,
       });
       setAdding(false); setNewApp({ job_id: "", stage: "Identified" });
       refetch();

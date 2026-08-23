@@ -1,4 +1,4 @@
-import { rankOpportunity, assessRightToWork } from "./opportunityRanking";
+import { rankOpportunity, assessRightToWork } from "./opportunityRanking.js";
 
 /**
  * Internal validation for the opportunity-ranking and right-to-work logic.

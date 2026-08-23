@@ -383,9 +383,9 @@ export function assessSalary(job: any, candidate: any): StructuredAssessment | n
       awarded_points: Math.round(maximum * 0.6 * 10) / 10,
       maximum,
       requirement: "Salary not advertised",
-      explanation: "Salary is not advertised. A neutral score is used; compare the role with a current industry benchmark before applying.",
+      explanation: "Salary is not advertised. A neutral provisional score is used; no market benchmark has been applied.",
       matched_facts: [],
-      conflicting_facts: ["Advertised salary is unknown"],
+      conflicting_facts: ["Requires a sourced salary benchmark before the salary fit can be confirmed"],
     };
   }
 

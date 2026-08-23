@@ -4,6 +4,7 @@ import { runJobMatch as sharedRunJobMatch } from "../../base44/shared/jobMatchin
 import { getPersonaConfig, getAuthoredInstruction, getCoachingInstruction } from "../../base44/shared/persona.ts";
 import { requireAIObject, requireJobExtraction } from "./aiResponse";
 import { assertJobOwner, getMatchingProfile } from "./profileReliability";
+export { classifyJob } from "./jobClassification";
 
 function isTransientAIError(error) {
   const status = Number(error?.status || error?.response?.status || 0);
@@ -50,27 +51,6 @@ export const DEFAULT_HARD_STOPS = [
 ];
 
 const EVIDENCE_SIMILARITY_THRESHOLD = 0.72;
-
-const GOVERNANCE_TITLES = [
-  "Head of Data Governance", "Director of Data Governance", "Data Governance Manager",
-  "Data Governance Lead", "Senior Data Governance Manager", "Data Quality Manager",
-  "Head of Data Quality", "Data Management Lead", "Data Governance Consultant",
-  "Data Stewardship Lead", "Metadata Manager", "Data Controls Manager", "Data Risk Manager",
-  "Information Governance Manager", "Master Data Management Lead", "Data Policy Manager",
-  "Chief Data Office Governance Lead", "Data Standards Manager", "Data Assurance Manager",
-];
-
-const TECHNICAL_TITLES = [
-  "Data Engineer", "Software Engineer", "BI Developer", "Data Scientist",
-  "Machine Learning Engineer", "Database Administrator", "Data Analyst",
-];
-
-export function classifyJob(job) {
-  const title = (job.job_title || "").toLowerCase();
-  const isGovernance = GOVERNANCE_TITLES.some((t) => title.includes(t.toLowerCase()));
-  const isTechnical = TECHNICAL_TITLES.some((t) => title.includes(t.toLowerCase())) && !isGovernance;
-  return { isGovernance, isTechnical };
-}
 
 export function getUsableCandidateCVs(cvs) {
   return (cvs || []).filter(

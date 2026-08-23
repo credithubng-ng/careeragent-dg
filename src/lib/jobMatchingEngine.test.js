@@ -115,13 +115,14 @@ export function runTests() {
     assert(result.awarded_points === DEFAULT_WEIGHTS.weight_salary, `Expected ${DEFAULT_WEIGHTS.weight_salary} points, got ${result.awarded_points}`);
   });
 
-  // 5. Salary: no salary stated → Requirement Not Stated
-  test("assessSalary: no salary stated → Requirement Not Stated", () => {
+  // 5. Salary: no salary stated → neutral provisional assessment
+  test("assessSalary: no salary stated → provisional partial match", () => {
     const noSalaryJob = { ...job, salary_min: 0, salary_max: 0, salary_description: "" };
     const result = assessSalary(noSalaryJob, candidate);
     assert(result !== null, "Should be applicable");
-    assert(result.status === "Requirement Not Stated", `Expected Requirement Not Stated, got ${result.status}`);
-    assert(result.awarded_points === 0, "Should award 0 points");
+    assert(result.status === "Partial Match", `Expected Partial Match, got ${result.status}`);
+    assert(result.awarded_points === 4.2, `Expected neutral 4.2 points, got ${result.awarded_points}`);
+    assert(result.explanation.includes("no market benchmark"), "Must disclose that no benchmark was applied");
   });
 
   // 6. Salary: below minimum → No Match
@@ -174,7 +175,7 @@ export function runTests() {
       explanation: "Candidate meets the requirement.",
     };
     const result = determineCategoryStatus("weight_location", llmAnalysis, "Complete");
-    assert(result.score === 7, `Expected score 7, got ${result.score}`);
+    assert(result.score === DEFAULT_WEIGHTS.weight_location, `Expected category maximum, got ${result.score}`);
     assert(result.status === "Strong Match", `Expected Strong Match, got ${result.status}`);
   });
 
