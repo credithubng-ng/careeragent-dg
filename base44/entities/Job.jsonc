@@ -93,6 +93,10 @@
     "source_confidence": {
       "type": "number"
     },
+    "email_sender_trust": {
+      "type": "string",
+      "enum": ["Recognised", "Unrecognised"]
+    },
     "last_source_check": {
       "type": "string"
     },

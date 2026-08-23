@@ -69,13 +69,17 @@ export default function EmailImportReview() {
               <tbody>
                 {emailImports.slice(0, 10).map((ei) => (
                   <tr key={ei.id} className="border-b border-border/50">
-                    <td className="py-2 pr-3 font-medium text-foreground">{ei.source || "—"}</td>
+                    <td className="py-2 pr-3 font-medium text-foreground">
+                      {ei.source || "—"}
+                      {ei.sender_trust === "Unrecognised" && <span className="ml-1 text-xs text-amber-700">New sender</span>}
+                    </td>
                     <td className="py-2 pr-3 text-muted-foreground max-w-xs truncate">{ei.subject || "—"}</td>
                     <td className="py-2 pr-3 text-muted-foreground whitespace-nowrap">{ei.received_date ? new Date(ei.received_date).toLocaleDateString("en-GB") : "—"}</td>
                     <td className="py-2 pr-3">
                       <span className={`inline-flex rounded-full px-2 py-0.5 text-xs ${
                         ei.processing_status === "Completed" ? "bg-emerald-100 text-emerald-700" :
                         ei.processing_status === "Failed" ? "bg-rose-100 text-rose-700" :
+                        ei.processing_status === "Needs Review" ? "bg-amber-100 text-amber-700" :
                         ei.processing_status === "Skipped" ? "bg-slate-100 text-slate-500" :
                         "bg-amber-100 text-amber-700"
                       }`}>

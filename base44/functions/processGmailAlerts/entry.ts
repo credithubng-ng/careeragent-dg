@@ -18,6 +18,7 @@ const GMAIL_API = "https://gmail.googleapis.com/gmail/v1/users/me";
 const CONNECTOR_ID = "6a6dbe19898b53557d5ea634";
 const INITIAL_DAYS = 30;
 const INCREMENTAL_DAYS = 7;
+const MAX_EMAIL_CANDIDATES = 200;
 
 export default async function(req: Request): Promise<Response> {
   try {
@@ -91,31 +92,18 @@ export default async function(req: Request): Promise<Response> {
       // Webhook mode: process specific message IDs from the connector trigger
       messages = webhookMessageIds.map((id: string) => ({ id }));
     } else {
-      // Manual mode: search for emails from known sender domains
+      // Manual mode: search recognised senders plus job-like subjects from other senders.
       const days = mode === "initial" ? INITIAL_DAYS : INCREMENTAL_DAYS;
       const afterDate = getDateString(days);
       const query = buildSearchQuery(activeSources, afterDate);
-      messages = await listMessages(authHeader, query, 50);
-    }
-
-    if (!messages.length) {
-      return Response.json({
-        summary: {
-          mode,
-          emails_processed: 0,
-          jobs_imported: 0,
-          duplicates_skipped: 0,
-          jobs_rejected: 0,
-          failed_emails: 0,
-          errors: [],
-          message: "No new job-alert emails found from known senders.",
-        },
-      });
+      messages = await listMessages(authHeader, query, MAX_EMAIL_CANDIDATES);
     }
 
     // Get existing data for duplicate detection
     const existingJobs = await base44.asServiceRole.entities.Job.filter({ owner_email: ownerEmail }, "-created_date", 500);
-    const existingEmailImports = await base44.asServiceRole.entities.EmailImport.filter({ owner_email: ownerEmail }, "-created_date", 200);
+    const existingEmailImports = await base44.asServiceRole.entities.EmailImport.filter({ owner_email: ownerEmail }, "-created_date", 1000);
+    const intakeStates = await base44.asServiceRole.entities.EmailIntakeState.filter({ owner_email: ownerEmail });
+    const intakeState = intakeStates[0];
     const allCVs = await base44.asServiceRole.entities.CV.filter({ owner_email: ownerEmail });
     const usableCVs = allCVs.filter((cv: any) => cv.processing_status === "Ready" && cv.extracted_cv_text?.trim());
     const scoringSettings = await base44.asServiceRole.entities.ScoringSetting.filter({ owner_email: ownerEmail });
@@ -126,6 +114,7 @@ export default async function(req: Request): Promise<Response> {
     let jobsRejected = 0;
     let emailsProcessed = 0;
     let failedEmails = 0;
+    let unknownQueued = 0;
     const errors: string[] = [];
 
     for (const msg of messages) {
@@ -141,19 +130,19 @@ export default async function(req: Request): Promise<Response> {
         const subject = extractHeader(headers, "subject");
         const receivedDate = extractHeader(headers, "date");
 
-        // Filter: only process emails from known job-alert senders
+        // Recognised senders can be imported automatically. Other senders must first
+        // look like a vacancy email and are always held for human review.
         const senderLower = (sender || "").toLowerCase();
         const knownSource = activeSources.find((s: any) => {
           if (!s.sender_domain) return false;
           return senderLower.includes(s.sender_domain.toLowerCase());
         });
-        if (!knownSource) {
-          // Not from a known job-alert sender — skip entirely
-          continue;
-        }
-
-        const { sourceName } = identifyEmailSource(sender, subject, activeSources);
         const bodyText = extractEmailBody(fullMessage.payload);
+        if (!knownSource && !looksLikeJobEmail(subject, bodyText)) continue;
+
+        const { sourceName: identifiedSource } = identifyEmailSource(sender, subject, activeSources);
+        const sourceName = knownSource ? identifiedSource : "Unrecognised sender";
+        const senderTrust = knownSource ? "Recognised" : "Unrecognised";
 
         // Extract individual vacancies using AI
         const vacancies = await extractVacanciesFromEmail(
@@ -290,6 +279,10 @@ export default async function(req: Request): Promise<Response> {
             }
           }
 
+          // Source trust and content quality are separate decisions. Even a complete
+          // advert from a new sender remains in review until Angel approves it.
+          if (!knownSource) emailImportStatus = "Needs Review";
+
           // Create Job record with merged data (email + page)
           const jobData = {
             owner_email: ownerEmail,
@@ -333,6 +326,7 @@ export default async function(req: Request): Promise<Response> {
             last_seen_date: new Date().toISOString(),
             relevance_tier: tier,
             email_import_status: emailImportStatus,
+            email_sender_trust: senderTrust,
             job_status: "New",
             currency: structuredJob.currency || "GBP",
             job_content_status: contentStatus,
@@ -366,9 +360,9 @@ export default async function(req: Request): Promise<Response> {
           emailJobsImported++;
           jobsImported++;
 
-          // Automatic AI scoring — only when content is sufficient
+          // Automatic AI scoring — only for recognised sources with sufficient content.
           try {
-            if (candidate && usableCVs.length > 0 && contentStatus !== "Needs Manual Review" && contentStatus !== "Failed") {
+            if (knownSource && candidate && usableCVs.length > 0 && contentStatus !== "Needs Manual Review" && contentStatus !== "Failed") {
               const matchResult = await runJobMatch(
                 created, candidate, usableCVs, scoring,
                 (params: any) => base44.asServiceRole.integrations.Core.InvokeLLM(params),
@@ -401,7 +395,10 @@ export default async function(req: Request): Promise<Response> {
           subject,
           received_date: receivedDate,
           source: sourceName,
-          processing_status: emailJobsImported > 0 || emailDuplicates > 0 ? "Completed" : "Skipped",
+          processing_status: !knownSource && vacancies.length > 0
+            ? "Needs Review"
+            : emailJobsImported > 0 || emailDuplicates > 0 ? "Completed" : "Skipped",
+          sender_trust: senderTrust,
           jobs_detected: vacancies.length,
           jobs_imported: emailJobsImported,
           duplicates_skipped: emailDuplicates,
@@ -410,21 +407,61 @@ export default async function(req: Request): Promise<Response> {
         });
 
         emailsProcessed++;
+        if (!knownSource && vacancies.length > 0) unknownQueued++;
       } catch (err: any) {
         failedEmails++;
         errors.push(`Email ${msg.id}: ${err.message}`);
       }
     }
 
+    const checkedAt = new Date().toISOString();
+    // Seed the persistent counters from existing records on the first upgraded run,
+    // so deploying this fix does not make Angel's historical totals appear to reset.
+    const historicalProcessed = intakeState ? intakeState.total_emails_processed || 0 : existingEmailImports.length;
+    const historicalJobs = intakeState
+      ? intakeState.total_jobs_imported || 0
+      : existingJobs.filter((job: any) => job.discovered_from_email).length - jobsImported;
+    const historicalDuplicates = intakeState
+      ? intakeState.total_duplicates_skipped || 0
+      : existingEmailImports.reduce((sum: number, item: any) => sum + (item.duplicates_skipped || 0), 0);
+    const historicalFailures = intakeState
+      ? intakeState.total_failed_emails || 0
+      : existingEmailImports.filter((item: any) => item.processing_status === "Failed").length;
+    const stateUpdate = {
+      owner_email: ownerEmail,
+      candidate_id: candidate.id,
+      last_checked_at: checkedAt,
+      last_scan_status: failedEmails > 0 ? "Completed with errors" : "Completed",
+      last_emails_scanned: messages.length,
+      total_emails_processed: historicalProcessed + emailsProcessed,
+      total_jobs_imported: historicalJobs + jobsImported,
+      total_duplicates_skipped: historicalDuplicates + duplicatesSkipped,
+      total_failed_emails: historicalFailures + failedEmails,
+      total_unknown_reviewed: (intakeState?.total_unknown_reviewed || 0) + unknownQueued,
+    };
+    if (intakeState?.id) {
+      await base44.asServiceRole.entities.EmailIntakeState.update(intakeState.id, stateUpdate);
+    } else {
+      await base44.asServiceRole.entities.EmailIntakeState.create(stateUpdate);
+    }
+
     return Response.json({
       summary: {
         mode,
+        checked_at: checkedAt,
+        emails_scanned: messages.length,
         emails_processed: emailsProcessed,
         jobs_imported: jobsImported,
         duplicates_skipped: duplicatesSkipped,
         jobs_rejected: jobsRejected,
         failed_emails: failedEmails,
+        unknown_queued: unknownQueued,
         errors: errors.slice(0, 5),
+        message: messages.length === 0
+          ? "No job-alert candidates were found in this search window."
+          : emailsProcessed === 0
+            ? "The candidate emails found had already been processed or were not job-related."
+            : undefined,
       },
     });
   } catch (error: any) {
@@ -445,23 +482,39 @@ function buildSearchQuery(sources: any[], afterDate: string): string {
     .filter((s: any) => s.sender_domain)
     .map((s: any) => s.sender_domain);
 
-  if (domains.length === 0) {
-    return `subject:"job alert" after:${afterDate}`;
-  }
-
   const fromPart = domains.map((d: string) => `from:${d}`).join(" OR ");
-  return `(${fromPart}) after:${afterDate}`;
+  const subjectPart = ["job alert", "vacancy", "new role", "career opportunity", "contract role", "consulting opportunity"]
+    .map((term) => `subject:"${term}"`)
+    .join(" OR ");
+  const candidates = [fromPart, subjectPart].filter(Boolean).join(" OR ");
+  return `(${candidates}) after:${afterDate}`;
 }
 
 async function listMessages(authHeader: any, query: string, maxResults: number): Promise<any[]> {
-  const url = `${GMAIL_API}/messages?q=${encodeURIComponent(query)}&maxResults=${maxResults}`;
-  const res = await fetch(url, { headers: authHeader });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(`Gmail search error: ${err.error?.message || res.statusText}`);
+  const messages: any[] = [];
+  let pageToken = "";
+  while (messages.length < maxResults) {
+    const pageSize = Math.min(100, maxResults - messages.length);
+    const tokenPart = pageToken ? `&pageToken=${encodeURIComponent(pageToken)}` : "";
+    const url = `${GMAIL_API}/messages?q=${encodeURIComponent(query)}&maxResults=${pageSize}${tokenPart}`;
+    const res = await fetch(url, { headers: authHeader });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(`Gmail search error: ${err.error?.message || res.statusText}`);
+    }
+    const data = await res.json();
+    messages.push(...(data.messages || []));
+    pageToken = data.nextPageToken || "";
+    if (!pageToken) break;
   }
-  const data = await res.json();
-  return data.messages || [];
+  return messages;
+}
+
+function looksLikeJobEmail(subject: string, bodyText: string): boolean {
+  const text = `${subject || ""} ${bodyText || ""}`.toLowerCase().slice(0, 20000);
+  const roleSignal = /\b(job|vacanc(?:y|ies)|position|role|career|opportunit(?:y|ies)|contract|consult(?:ant|ing))\b/.test(text);
+  const advertSignal = /\b(apply|salary|location|closing date|job description|requirements?|responsibilities|hiring)\b/.test(text);
+  return roleSignal && advertSignal;
 }
 
 async function getMessage(authHeader: any, messageId: string): Promise<any> {

@@ -17,8 +17,9 @@ export default function GmailConnectionCard() {
   const [gmailAddress, setGmailAddress] = useState("");
   const [connectionError, setConnectionError] = useState("");
 
-  const { data: emailImports } = useCollection("EmailImport", () => listOwnedRecords("EmailImport", {}, "-created_date", 200));
-  const { data: emailJobs } = useCollection("Job", () => listOwnedRecords("Job", { discovered_from_email: true }, "-created_date", 500));
+  const { data: emailImports, refetch: refetchImports } = useCollection("EmailImport", () => listOwnedRecords("EmailImport", {}, "-created_date", 200));
+  const { data: emailJobs, refetch: refetchJobs } = useCollection("Job", () => listOwnedRecords("Job", { discovered_from_email: true }, "-created_date", 500));
+  const { data: intakeStates, refetch: refetchState } = useCollection("EmailIntakeState", () => listOwnedRecords("EmailIntakeState", {}, "-last_checked_at", 1));
 
   const fetchData = useCallback(async () => {
     try {
@@ -89,6 +90,7 @@ export default function GmailConnectionCard() {
     try {
       const res = await base44.functions.invoke("processGmailAlerts", { mode, maxJobs: 20 });
       setSummary(res.data?.summary);
+      await Promise.all([refetchImports(), refetchJobs(), refetchState()]);
       if (res.data?.summary) {
         const s = res.data.summary;
         toast.success(`Import complete: ${s.jobs_imported} jobs imported, ${s.duplicates_skipped} duplicates skipped`);
@@ -104,15 +106,21 @@ export default function GmailConnectionCard() {
   };
 
   // Calculate stats
-  const stats = {
-    emailsProcessed: emailImports?.length || 0,
-    jobsExtracted: emailJobs?.length || 0,
+  const intakeState = intakeStates?.[0];
+  const stats = intakeState ? {
+    emailsProcessed: intakeState.total_emails_processed || 0,
+    jobsExtracted: intakeState.total_jobs_imported || 0,
+    duplicatesSkipped: intakeState.total_duplicates_skipped || 0,
+    failedEmails: intakeState.total_failed_emails || 0,
+  } : {
+    emailsProcessed: emailImports?.length === 200 ? "200+" : emailImports?.length || 0,
+    jobsExtracted: emailJobs?.length === 500 ? "500+" : emailJobs?.length || 0,
     duplicatesSkipped: emailImports?.reduce((sum, ei) => sum + (ei.duplicates_skipped || 0), 0) || 0,
     failedEmails: emailImports?.filter((ei) => ei.processing_status === "Failed").length || 0,
   };
 
-  const lastCheck = emailImports?.[0]?.processed_date;
-  const nextCheck = "Real-time (auto)";
+  const lastCheck = intakeState?.last_checked_at || emailImports?.[0]?.processed_date;
+  const nextCheck = "Automatic event; manual check available";
 
   if (loading) return <Loading label="Checking Gmail connection…" />;
 
@@ -200,10 +208,12 @@ export default function GmailConnectionCard() {
               <p className="font-medium text-foreground mb-2">Import Summary</p>
               <div className="grid grid-cols-2 md:grid-cols-3 gap-2 text-sm">
                 <SummaryItem label="Emails Processed" value={summary.emails_processed} />
+                <SummaryItem label="Emails Scanned" value={summary.emails_scanned} />
                 <SummaryItem label="Jobs Imported" value={summary.jobs_imported} />
                 <SummaryItem label="Duplicates Skipped" value={summary.duplicates_skipped} />
                 <SummaryItem label="Irrelevant Excluded" value={summary.jobs_rejected} />
                 <SummaryItem label="Failed Emails" value={summary.failed_emails} />
+                <SummaryItem label="New Senders for Review" value={summary.unknown_queued} />
               </div>
               {summary.message && (
                 <p className="mt-2 text-sm text-muted-foreground">{summary.message}</p>
@@ -221,9 +231,9 @@ export default function GmailConnectionCard() {
           <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-800">
             <p className="font-medium">How Email Import Works</p>
             <p className="mt-1">
-              CareerAgent searches your Gmail for emails from known job-alert senders (Indeed, LinkedIn, Totaljobs, Reed, etc.).
-              Each email is parsed into individual vacancies, deduplicated against your existing jobs, and added to the Email Import Review queue.
-              No Gmail labels or filters are required — new emails are processed automatically in real time.
+              CareerAgent searches recognised job-alert senders and job-like subjects. Recognised sources continue through normal import;
+              vacancies from a new sender are held in Email Import Review without automatic scoring until you approve them.
+              Every scan is recorded, including scans that find no new vacancies.
             </p>
           </div>
         </div>
