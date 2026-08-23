@@ -175,9 +175,12 @@ export default async function(req: Request): Promise<Response> {
             continue;
           }
 
-          // Relevance pre-filter
+          // Relevance pre-filter. Angel has explicitly chosen LinkedIn as an
+          // allow-all discovery source: keep every extracted LinkedIn vacancy,
+          // while retaining its honest relevance label for later review.
           const tier = filterRelevance(vacancy, candidate);
-          if (tier === "Unlikely Relevant") {
+          const isLinkedInVacancy = sourceName.toLowerCase().includes("linkedin");
+          if (tier === "Unlikely Relevant" && !isLinkedInVacancy) {
             emailRejected++;
             jobsRejected++;
             continue;
