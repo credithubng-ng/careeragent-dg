@@ -3,10 +3,9 @@ import { useCollection } from "@/lib/entityHooks";
 import { listOwnedRecords, createOwnedRecord, updateOwnedRecord } from "@/lib/ownedEntities";
 import { PageHeader, SectionCard, Loading, Notice } from "@/components/ui-kit";
 import OINav from "@/components/opportunity-intelligence/OINav";
-import { SUGGESTED_JOB_TITLES, SUGGESTED_KEYWORDS, SUGGESTED_EXCLUDED_TITLES } from "@/lib/oiUtils";
-import { Plus, X, Save, ArrowRight } from "lucide-react";
+import { SUGGESTED_JOB_TITLES, SUGGESTED_KEYWORDS, SUGGESTED_CONSULTING_KEYWORDS, SUGGESTED_EXCLUDED_TITLES } from "@/lib/oiUtils";
+import { Plus, X, Save } from "lucide-react";
 import { toast } from "react-hot-toast";
-import { cn } from "@/lib/utils";
 
 const PRIORITIES = ["Critical", "High", "Medium", "Low"];
 
@@ -17,14 +16,20 @@ export default function SearchProfile() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (!form && profiles.length) setForm(profiles[0]);
+    if (!form && profiles.length) setForm({
+      ...profiles[0],
+      opportunity_types: profiles[0].opportunity_types || ["Permanent Employment", "Contract or Interim", "Consulting Engagement"],
+      consulting_keywords: profiles[0].consulting_keywords || SUGGESTED_CONSULTING_KEYWORDS.slice(0, 8),
+    });
     else if (!form && !profiles.length && candidates.length) {
       const c = candidates[0];
       setForm({
         profile_name: "Primary Search Profile",
         candidate_id: c.id,
+        opportunity_types: ["Permanent Employment", "Contract or Interim", "Consulting Engagement"],
         target_job_titles: (c.preferred_job_titles || []).map(t => ({ title: t, priority: "High" })),
         search_keywords: SUGGESTED_KEYWORDS.slice(0, 5),
+        consulting_keywords: SUGGESTED_CONSULTING_KEYWORDS.slice(0, 8),
         excluded_titles: SUGGESTED_EXCLUDED_TITLES.slice(),
         excluded_keywords: [],
         search_filters: {
@@ -61,6 +66,14 @@ export default function SearchProfile() {
       <OINav />
       <Notice tone="blue">Search filters default from your Candidate Profile. Changes here override the Candidate Profile only where you explicitly set them.</Notice>
       <div className="space-y-6 mt-4">
+        <SectionCard title="Opportunity Lanes" description="Search employment and Inspirars consulting opportunities in parallel, while keeping each lane distinct">
+          <CheckboxGroup
+            options={["Permanent Employment", "Contract or Interim", "Consulting Engagement"]}
+            selected={form.opportunity_types || ["Permanent Employment", "Contract or Interim"]}
+            onChange={opportunity_types => setForm({ ...form, opportunity_types })}
+          />
+          <p className="mt-3 text-xs text-muted-foreground">Consulting Engagement covers direct client work, maturity assessments, advisory projects, tenders and fractional Data Governance leadership. It is not treated as a salaried vacancy.</p>
+        </SectionCard>
         <SectionCard title="Target Job Titles" description="Roles to search for, with priority weighting">
           <ListEditor items={form.target_job_titles || []} onChange={items => setForm({ ...form, target_job_titles: items })} renderItem={(item, set) => (
             <div className="flex items-center gap-2 flex-1">
@@ -72,6 +85,10 @@ export default function SearchProfile() {
 
         <SectionCard title="Search Keywords" description="Keywords to match in job descriptions">
           <TagEditor tags={form.search_keywords || []} onChange={tags => setForm({ ...form, search_keywords: tags })} suggestions={SUGGESTED_KEYWORDS} />
+        </SectionCard>
+
+        <SectionCard title="Consulting Opportunity Keywords" description="Commercial signals for direct Inspirars engagements and advisory projects">
+          <TagEditor tags={form.consulting_keywords || []} onChange={consulting_keywords => setForm({ ...form, consulting_keywords })} suggestions={SUGGESTED_CONSULTING_KEYWORDS} />
         </SectionCard>
 
         <SectionCard title="Excluded Titles and Keywords" description="Roles to exclude — but governance roles with substantial governance responsibilities are not auto-rejected">

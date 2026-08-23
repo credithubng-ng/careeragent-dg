@@ -18,6 +18,7 @@ const FIELDS = [
     ["date_discovered", "Date discovered", "date"], ["date_posted", "Date posted", "date"], ["closing_date", "Closing date", "date"],
   ]},
   { section: "Role", fields: [
+    ["opportunity_type", "Opportunity type", "select", ["", "Permanent Employment", "Contract or Interim", "Consulting Engagement"]],
     ["employment_type", "Employment type", "select", ["", "Permanent", "Contract", "Interim", "Fixed Term", "Part-time"]],
     ["contract_length", "Contract length", "text"], ["location", "Location", "text"], ["country", "Country", "text"],
     ["work_arrangement", "Working pattern", "select", ["", "Remote", "Hybrid", "Office", "Unspecified"]],

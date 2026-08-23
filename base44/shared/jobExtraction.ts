@@ -18,6 +18,7 @@ export interface StructuredJob {
   region: string;
   work_arrangement: string;
   employment_type: string;
+  opportunity_type: string;
   contract_length: string;
   inside_or_outside_ir35: string;
   salary_min: number;
@@ -56,7 +57,7 @@ export async function extractJobFromText(
 ): Promise<Partial<StructuredJob>> {
   const today = new Date().toISOString().slice(0, 10);
   const res = await invokeLLM({
-    prompt: `You are a job-description extraction engine for UK Data Governance roles. The text below has been isolated from a recruitment webpage to contain only the primary vacancy. Extract only facts stated in the text that belong to the primary vacancy. If the text appears to contain multiple job vacancies, set ambiguity_warning to true and extract only the primary vacancy (the one matching the page title or main heading). Do not merge requirements from different vacancies. Leave unknown fields empty ("" or 0); do not infer missing employer, salary, dates, requirements or contact details. Parse salary ranges into numeric min/max without converting currencies. Use YYYY-MM-DD for dates. Set work_arrangement and employment_type only to one of the schema values. Identify the stated sector where possible. Set extraction_confidence to "High", "Medium", or "Low" based on how complete and coherent the extraction is.\n\nToday: ${today}\n\nJOB TEXT:\n${text}`,
+    prompt: `You are an opportunity-extraction engine for UK Data Governance employment, interim and consulting work. The text below has been isolated from a recruitment or procurement webpage to contain only the primary opportunity. Extract only facts stated in the text that belong to the primary opportunity. If the text appears to contain multiple opportunities, set ambiguity_warning to true and extract only the primary one. Do not merge requirements from different opportunities. Leave unknown fields empty ("" or 0); do not infer missing employer, salary, dates, requirements or contact details. Parse salary, day-rate or project-budget ranges into numeric min/max without converting currencies. Use YYYY-MM-DD for dates. Classify opportunity_type as Permanent Employment, Contract or Interim, or Consulting Engagement from the advert's commercial relationship. Set work_arrangement and employment_type only to one of the schema values. Identify the stated sector where possible. Set extraction_confidence to "High", "Medium", or "Low" based on how complete and coherent the extraction is.\n\nToday: ${today}\n\nOPPORTUNITY TEXT:\n${text}`,
     response_json_schema: {
       type: "object",
       properties: {
@@ -73,6 +74,7 @@ export async function extractJobFromText(
         region: { type: "string" },
         work_arrangement: { type: "string", enum: ["", "Remote", "Hybrid", "Office", "Unspecified"] },
         employment_type: { type: "string", enum: ["", "Permanent", "Contract", "Interim", "Fixed Term", "Part-time"] },
+        opportunity_type: { type: "string", enum: ["", "Permanent Employment", "Contract or Interim", "Consulting Engagement"] },
         contract_length: { type: "string" },
         inside_or_outside_ir35: { type: "string", enum: ["", "Inside IR35", "Outside IR35", "Not Stated"] },
         salary_min: { type: "number" },

@@ -375,6 +375,32 @@ export function assessSalary(job: any, candidate: any): StructuredAssessment | n
   const candidateMin = Number(candidate?.min_salary) || 0;
   const candidatePreferred = Number(candidate?.preferred_salary) || 0;
 
+  if (job?.opportunity_type === "Consulting Engagement") {
+    return {
+      applicable: true,
+      status: "Partial Match",
+      awarded_points: Math.round(maximum * 0.6 * 10) / 10,
+      maximum,
+      requirement: job?.salary_description || "Consulting fee or project budget requires commercial scoping",
+      explanation: "A consulting engagement cannot be compared directly with an annual salary expectation. A neutral provisional score is used until scope, duration, delivery capacity and fees are qualified.",
+      matched_facts: [],
+      conflicting_facts: ["Consulting commercial terms require qualification"],
+    };
+  }
+
+  if (["daily", "hourly"].includes(String(job?.salary_period || "").toLowerCase())) {
+    return {
+      applicable: true,
+      status: "Partial Match",
+      awarded_points: Math.round(maximum * 0.6 * 10) / 10,
+      maximum,
+      requirement: job?.salary_description || "Contract rate requires like-for-like comparison",
+      explanation: "A day or hourly rate cannot be compared directly with the candidate's annual salary preference. A neutral provisional score is used until a contract-rate benchmark is configured.",
+      matched_facts: [],
+      conflicting_facts: ["Contract rate and annual salary are not directly comparable"],
+    };
+  }
+
   // No salary stated on the job
   if (jobMin === 0 && jobMax === 0 && !salaryDescription) {
     return {

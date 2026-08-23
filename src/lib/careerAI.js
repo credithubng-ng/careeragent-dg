@@ -160,7 +160,7 @@ function hasGroundedEvidence(evidence, sourceText) {
 export async function extractJobFromText(text) {
   const today = new Date().toISOString().slice(0, 10);
   const res = await base44.integrations.Core.InvokeLLM({
-    prompt: `You are a job-description extraction engine for UK Data Governance roles. The text below has been isolated from a recruitment webpage to contain only the primary vacancy. Extract only facts stated in the text that belong to the primary vacancy. If the text appears to contain multiple job vacancies, set ambiguity_warning to true and extract only the primary vacancy (the one matching the page title or main heading). Do not merge requirements from different vacancies. Leave unknown fields empty ("" or 0); do not infer missing employer, salary, dates, requirements or contact details. Parse salary ranges into numeric min/max without converting currencies. Use YYYY-MM-DD for dates. Set work_arrangement and employment_type only to one of the schema values. Identify the stated sector where possible. Set extraction_confidence to "High", "Medium", or "Low" based on how complete and coherent the extraction is.\n\nToday: ${today}\n\nJOB TEXT:\n${text}`,
+    prompt: `You are an opportunity-extraction engine for UK Data Governance employment, interim and consulting work. The text below contains one primary opportunity. Extract only facts stated for that opportunity and do not merge related roles. Leave unknown factual fields empty ("" or 0); do not invent employer, salary, budget, dates, requirements or contacts. Parse salary, day-rate or project-budget ranges without converting currencies. Classify opportunity_type as Permanent Employment, Contract or Interim, or Consulting Engagement from the stated commercial relationship. Use YYYY-MM-DD for dates and set extraction confidence from completeness.\n\nToday: ${today}\n\nOPPORTUNITY TEXT:\n${text}`,
     response_json_schema: {
       type: "object",
       properties: {
@@ -180,6 +180,10 @@ export async function extractJobFromText(text) {
         employment_type: {
           type: "string",
           enum: ["", "Permanent", "Contract", "Interim", "Fixed Term", "Part-time"],
+        },
+        opportunity_type: {
+          type: "string",
+          enum: ["", "Permanent Employment", "Contract or Interim", "Consulting Engagement"],
         },
         contract_length: { type: "string" },
         salary_min: { type: "number" },

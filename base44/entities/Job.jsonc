@@ -108,6 +108,14 @@
     "closing_date": {
       "type": "string"
     },
+    "opportunity_type": {
+      "type": "string",
+      "enum": [
+        "Permanent Employment",
+        "Contract or Interim",
+        "Consulting Engagement"
+      ]
+    },
     "employment_type": {
       "type": "string",
       "enum": [

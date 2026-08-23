@@ -500,7 +500,7 @@ export default function JobDetail() {
                 ["Job Content Status", job.job_content_status], ["Enrichment Status", job.enrichment_status], ["Enrichment Method", job.enrichment_method],
                 ["Extraction Confidence", job.extraction_confidence], ["Employer", job.employer], ["Recruitment Agency", job.recruitment_agency], ["Source", job.job_source_name],
                 ["Reference", job.job_reference], ["Location", job.location], ["Country", job.country],
-                ["Working pattern", job.work_arrangement], ["Employment type", job.employment_type], ["Contract length", job.contract_length],
+                ["Opportunity type", job.opportunity_type], ["Working pattern", job.work_arrangement], ["Employment type", job.employment_type], ["Contract length", job.contract_length],
                 ["Sector", job.sector], ["Salary", (job.salary_min || job.salary_max) ? `${gbp(job.salary_min)}${job.salary_max ? ` – ${gbp(job.salary_max)}` : ""}` : job.salary_description],
                 ["Salary detail", job.salary_description], ["Currency", job.currency], ["Years required", job.required_years_experience],
                 ["Qualifications", job.required_qualifications], ["Certifications", job.required_certifications],

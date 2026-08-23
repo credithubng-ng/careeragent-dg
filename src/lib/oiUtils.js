@@ -83,6 +83,11 @@ export const SUGGESTED_JOB_TITLES = [
   "Master Data Management Lead",
   "Data Policy Manager",
   "Data Assurance Manager",
+  "Data Governance Consultant",
+  "Senior Data Governance Consultant",
+  "Data Governance Advisory Lead",
+  "Data Governance Programme Consultant",
+  "Fractional Data Governance Lead",
 ];
 
 export const SUGGESTED_KEYWORDS = [
@@ -90,6 +95,14 @@ export const SUGGESTED_KEYWORDS = [
   "Metadata", "Data Lineage", "Data Stewardship", "Master Data Management",
   "Data Controls", "Data Risk", "AI Governance", "Responsible AI",
   "Model Governance", "Data Policy", "Regulatory Data",
+];
+
+export const SUGGESTED_CONSULTING_KEYWORDS = [
+  "Data Governance Consultant", "Data Governance Advisory", "Data Governance Assessment",
+  "Data Governance Maturity Assessment", "Data Governance Framework", "Data Governance Roadmap",
+  "Data Management Consultant", "Data Quality Consultant", "Data Strategy Consultant",
+  "Information Governance Consultant", "Interim Data Governance", "Fractional Data Governance",
+  "Request for Proposal", "Invitation to Tender", "Statement of Work",
 ];
 
 export const SUGGESTED_EXCLUDED_TITLES = [

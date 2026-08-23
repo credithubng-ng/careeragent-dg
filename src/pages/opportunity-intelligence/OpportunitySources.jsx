@@ -14,6 +14,7 @@ const SOURCE_TYPES = Object.keys(SOURCE_TYPE_ICONS);
 const MONITORING_STATUSES = Object.keys(MONITORING_STATUS_STYLES);
 const FREQUENCIES = ["Hourly", "Every 2 Hours", "Every 4 Hours", "Every 6 Hours", "Every 12 Hours", "Daily", "Weekdays Only", "Weekends Only", "Manual Only"];
 const LINKEDIN_JOBS_URL = "https://www.linkedin.com/jobs/search/?keywords=Data%20Governance&location=United%20Kingdom";
+const LINKEDIN_CONSULTING_URL = "https://www.linkedin.com/jobs/search/?keywords=Data%20Governance%20Consultant&location=United%20Kingdom";
 
 function isLinkedInSource(source) {
   return /linkedin/i.test(`${source?.source_name || ""} ${source?.website_or_endpoint || ""}`);
@@ -82,6 +83,7 @@ export default function OpportunitySources() {
     <div>
       <PageHeader title="Opportunity Sources" subtitle="Manage every channel through which vacancies are discovered"
         actions={<div className="flex flex-wrap gap-2">
+          <a href={LINKEDIN_CONSULTING_URL} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-lg border border-[#0A66C2] bg-white px-4 py-2 text-sm font-semibold text-[#0A66C2] shadow-sm transition-all hover:-translate-y-0.5 hover:bg-blue-50 hover:shadow-md"><Linkedin className="h-4 w-4" /> Search Consulting Roles</a>
           {!hasLinkedIn && <button onClick={addLinkedInSource} disabled={addingLinkedIn} className="inline-flex items-center gap-2 rounded-lg bg-[#0A66C2] px-4 py-2 text-sm font-semibold text-white shadow-sm transition-all hover:-translate-y-0.5 hover:bg-[#004182] hover:shadow-md disabled:opacity-50"><Linkedin className="h-4 w-4" /> {addingLinkedIn ? "Adding…" : "Add LinkedIn"}</button>}
           <button onClick={openAdd} className="inline-flex items-center gap-2 rounded-lg bg-primary text-primary-foreground px-4 py-2 text-sm font-medium"><Plus className="h-4 w-4" /> Add Source</button>
         </div>} />

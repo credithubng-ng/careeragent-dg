@@ -13,6 +13,17 @@
       "type": "string",
       "default": "Primary Search Profile"
     },
+    "opportunity_types": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "Permanent Employment",
+          "Contract or Interim",
+          "Consulting Engagement"
+        ]
+      }
+    },
     "target_job_titles": {
       "type": "array",
       "items": {
@@ -35,6 +46,12 @@
       }
     },
     "search_keywords": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "consulting_keywords": {
       "type": "array",
       "items": {
         "type": "string"

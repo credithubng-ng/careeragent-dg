@@ -125,6 +125,21 @@ export function runTests() {
     assert(result.explanation.includes("no market benchmark"), "Must disclose that no benchmark was applied");
   });
 
+  test("assessSalary: consulting fee is not compared with annual salary", () => {
+    const consultingJob = { ...job, opportunity_type: "Consulting Engagement", salary_min: 5000, salary_max: 10000 };
+    const result = assessSalary(consultingJob, candidate);
+    assert(result.status === "Partial Match", `Expected Partial Match, got ${result.status}`);
+    assert(result.awarded_points === 4.2, `Expected neutral 4.2 points, got ${result.awarded_points}`);
+    assert(result.explanation.includes("cannot be compared directly"), "Must explain the different commercial basis");
+  });
+
+  test("assessSalary: day rate is not compared with annual salary", () => {
+    const interimJob = { ...job, employment_type: "Interim", salary_period: "daily", salary_min: 650, salary_max: 800 };
+    const result = assessSalary(interimJob, candidate);
+    assert(result.status === "Partial Match", `Expected Partial Match, got ${result.status}`);
+    assert(result.awarded_points === 4.2, `Expected neutral 4.2 points, got ${result.awarded_points}`);
+  });
+
   // 6. Salary: below minimum → No Match
   test("assessSalary: salary materially below minimum → No Match", () => {
     const lowSalaryJob = { ...job, salary_min: 40000, salary_max: 45000 };

@@ -6,6 +6,7 @@ import { ukDate, daysUntil, formatSalary } from "@/lib/format";
 import { Plus, Upload, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { listOwnedRecords } from "@/lib/ownedEntities";
+import { classifyOpportunityType, OPPORTUNITY_TYPES } from "@/lib/opportunityType";
 
 const SAVED_VIEWS = [
   { label: "Best Matches", filter: (j) => j.match_score >= 70 },
@@ -13,6 +14,7 @@ const SAVED_VIEWS = [
   { label: "Closing Soon", filter: (j) => { const d = daysUntil(j.closing_date); return d != null && d >= 0 && d <= 5; } },
   { label: "Remote Roles", filter: (j) => j.work_arrangement === "Remote" },
   { label: "Contract Roles", filter: (j) => ["Contract", "Interim"].includes(j.employment_type) },
+  { label: "Consulting Opportunities", filter: (j) => classifyOpportunityType(j) === "Consulting Engagement" && j.job_status !== "Skip" },
   { label: "All", filter: (j) => j.job_status !== "Skip" },
   { label: "Not Interested", filter: (j) => j.job_status === "Skip" },
 ];
@@ -22,7 +24,7 @@ export default function Jobs() {
   const { data: jobs, loading, refetch } = useCollection("Job", () => listOwnedRecords("Job", {}, "-created_date", 300));
   const [search, setSearch] = useState(searchParams.get("employer") || "");
   const [view, setView] = useState(searchParams.get("view") || "All");
-  const [filters, setFilters] = useState({ status: searchParams.get("status") || "", employment_type: "", work_arrangement: "", minScore: searchParams.get("minScore") || "" });
+  const [filters, setFilters] = useState({ status: searchParams.get("status") || "", opportunity_type: "", employment_type: "", work_arrangement: "", minScore: searchParams.get("minScore") || "" });
 
   const filtered = useMemo(() => {
     const selectedView = SAVED_VIEWS.find((v) => v.label === view) || SAVED_VIEWS.find((v) => v.label === "All");
@@ -32,6 +34,7 @@ export default function Jobs() {
       list = list.filter((j) => [j.job_title, j.employer, j.location, j.sector].some((f) => (f || "").toLowerCase().includes(q)));
     }
     if (filters.status) list = list.filter((j) => j.job_status === filters.status);
+    if (filters.opportunity_type) list = list.filter((j) => classifyOpportunityType(j) === filters.opportunity_type);
     if (filters.employment_type) list = list.filter((j) => j.employment_type === filters.employment_type);
     if (filters.work_arrangement) list = list.filter((j) => j.work_arrangement === filters.work_arrangement);
     if (filters.minScore) list = list.filter((j) => (j.match_score || 0) >= Number(filters.minScore));
@@ -65,6 +68,10 @@ export default function Jobs() {
         <select value={filters.status} onChange={(e) => setFilters({ ...filters, status: e.target.value })} className="rounded-lg border border-input bg-card px-3 py-2 text-sm">
           <option value="">All statuses</option>
           {["New", "Reviewing", "High Priority", "Apply", "Maybe", "Skip", "Preparing Application", "Applied", "Interview", "Offer", "Rejected", "Withdrawn", "Expired"].map((s) => <option key={s} value={s}>{s === "Skip" ? "Not Interested" : s}</option>)}
+        </select>
+        <select value={filters.opportunity_type} onChange={(e) => setFilters({ ...filters, opportunity_type: e.target.value })} className="rounded-lg border border-input bg-card px-3 py-2 text-sm">
+          <option value="">All opportunity lanes</option>
+          {OPPORTUNITY_TYPES.map((s) => <option key={s} value={s}>{s}</option>)}
         </select>
         <select value={filters.employment_type} onChange={(e) => setFilters({ ...filters, employment_type: e.target.value })} className="rounded-lg border border-input bg-card px-3 py-2 text-sm">
           <option value="">All types</option>
@@ -102,6 +109,7 @@ export default function Jobs() {
                 <div className="flex flex-wrap gap-x-4 gap-y-1 mt-3 text-xs text-muted-foreground">
                   {j.location && <span>📍 {j.location}</span>}
                   {j.work_arrangement && <span>{j.work_arrangement}</span>}
+                  <span className="rounded-full bg-blue-50 px-2 py-0.5 font-medium text-blue-700">{classifyOpportunityType(j)}</span>
                   {j.employment_type && <span>{j.employment_type}</span>}
                   <span>{formatSalary(j)}</span>
                   {j.closing_date && <span className={cn(d != null && d <= 3 ? "text-rose-600 font-medium" : "")}>Closes {ukDate(j.closing_date)}</span>}

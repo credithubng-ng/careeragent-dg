@@ -5,6 +5,7 @@ import { Save, Loader2, ArrowLeft, AlertTriangle, AlertCircle, Sparkles, ShieldA
 import ExtractionDiagnostics from "./ExtractionDiagnostics";
 
 const SELECT_OPTIONS = {
+  opportunity_type: ["", "Permanent Employment", "Contract or Interim", "Consulting Engagement"],
   employment_type: ["", "Permanent", "Contract", "Interim", "Fixed Term", "Part-time"],
   work_arrangement: ["", "Remote", "Hybrid", "Office", "Unspecified"],
   currency: ["GBP", "EUR", "USD", "NGN", "CAD", "AUD", "CHF"],
@@ -30,7 +31,7 @@ const LONG_FIELDS = new Set([
 const SHORT_FIELD_ORDER = [
   "job_title", "employer", "recruitment_agency", "job_source_name", "job_reference",
   "original_job_url", "sector", "date_discovered", "date_posted", "closing_date",
-  "employment_type", "contract_length", "work_arrangement", "location", "country",
+  "opportunity_type", "employment_type", "contract_length", "work_arrangement", "location", "country",
   "salary_min", "salary_max", "salary_description", "currency",
   "required_years_experience",
   "contact_person", "contact_email",

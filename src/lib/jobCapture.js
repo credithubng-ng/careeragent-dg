@@ -1,3 +1,5 @@
+import { classifyOpportunityType } from "./opportunityType.js";
+
 const JOB_FIELDS = [
   "candidate_id",
   "job_title",
@@ -10,6 +12,7 @@ const JOB_FIELDS = [
   "date_discovered",
   "date_posted",
   "closing_date",
+  "opportunity_type",
   "employment_type",
   "contract_length",
   "location",
@@ -87,6 +90,7 @@ export function normaliseJobPayload(job = {}) {
       payload[field] = value;
     }
   }
+  payload.opportunity_type = classifyOpportunityType({ ...job, ...payload });
   return payload;
 }
 
